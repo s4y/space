@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<style>
+
+html, body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+}
+
+body > iframe {
+  border: 0;
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: black;
+}
+
+#serviceFrames {
+  display: none;
+}
+
+</style>
+<body>
+<div id=serviceFrames></div>
+<script type=module>
+
+import Observers from '/js/Observers.js'; 
+
+window.ServiceManager = {
+  registrations: {},
+  observers: new Observers(),
+  register(name, service) {
+    if (this.registrations[name])
+      console.log('ℹ️ Service reloaded:', name);
+    this.registrations[name] = service;
+    this.observers.fire(name, service);
+  },
+  want(name, win, cb) {
+    this.observers.add(name, win, cb);
+    const reg = this.registrations[name];
+    if (reg)
+      cb(reg);
+  },
+};
+
+const goServices = () => {
+  for (const service of [
+    'knobs',
+    'music',
+    'room',
+    'userMedia',
+    'ws',
+  ]) {
+    const frame = document.createElement('iframe');
+    frame.src = `/services/${service}.html`;
+    serviceFrames.appendChild(frame);
+  }
+};
+
+const prepSplash = () => {
+  const doc = splashFrame.contentDocument;
+
+  const connDetails = doc.getElementById('conndetails');
+  const goLink = doc.createElement('a');
+  goLink.style.fontSize = '1.2em';
+  goLink.style.fontWeight = 'bold';
+  goLink.href = 'http://zoom.us/j/2753428392?pwd=LN9hwDlqwj2j82kjdslhdqlwknaksjr8';
+  goLink.textContent = 'Click here to join.';
+  connDetails.innerHTML = '';
+  connDetails.appendChild(goLink);
+
+  splashFrame.offsetWidth;
+  splashFrame.style.opacity = '1';
+  splashFrame.style.background = 'white';
+  splashFrame.style.backdropFilter = 'blur(20px)';
+
+  doc.body.style.background = 'white';
+  doc.documentElement.style.background = 'rgba(255, 255, 255, 0.05)';
+
+  goLink.addEventListener('mousedown', e => {
+    e.preventDefault();
+    sessionStorage.inParty = true;
+
+    partyFrame.style.visibility = '';
+    splashFrame.style.pointerEvents = 'none';
+    splashFrame.blur();
+
+
+    splashFrame.style.transition = 'background 4s ease-out, backdrop-filter 4s ease-in-out';
+    doc.body.style.transition = 'transform 4s linear';
+    doc.body.style.transformOrigin = 'center -50%';
+    doc.body.style.transform = 'perspective(100vw) translateZ(-100vw) rotateX(90deg)';
+
+    setTimeout(() => {
+      splashFrame.style.background = 'transparent';
+      splashFrame.style.backdropFilter = '';
+    }, 2000);
+
+    setTimeout(() => {
+      splashFrame.parentNode.removeChild(splashFrame);
+    }, 7000);
+
+    window.waitForGesture = false;
+    goServices();
+    partyFrame.contentWindow.startOnGesture();
+
+    // Quick hax
+    if (ServiceManager.registrations.music)
+      ServiceManager.registrations.music.resume(); 
+  }); 
+};
+
+const partyFrame = document.createElement('iframe');
+partyFrame.src = 'party/';
+
+if (false && sessionStorage.inParty) {
+  window.waitForGesture = false;
+  document.body.appendChild(partyFrame);
+} else {
+  window.waitForGesture = true;
+  const splashFrame = document.createElement('iframe');
+  splashFrame.src = 'splash/';
+  splashFrame.id = 'splashFrame';
+
+  partyFrame.style.visibility = 'hidden';
+  document.body.appendChild(partyFrame);
+  document.body.appendChild(splashFrame);
+  splashFrame.addEventListener('load', prepSplash);
+}
+
+</script>

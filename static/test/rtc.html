@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<style>
+
+body {
+  font: 14px monospace;
+  margin: 0;
+}
+
+.rtcTest {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.testCell {
+  background: #aaa;
+  position: relative;
+  width: 25vw;
+  height: calc(25vw / (320/240));
+  box-sizing: border-box;
+}
+
+.testCell canvas, .testCell video {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.testCell .id {
+  position: absolute;
+  top: 0;
+  color: red;
+  font-size: 1.2em;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 0.2em;
+}
+
+.testCell .mids {
+  position: absolute;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 0.2em;
+}
+
+#errlog {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  background: red;
+  color: white;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+#errlog li {
+  padding: 0.5em;
+}
+
+#errlog li:not(:last-child) {
+  border-bottom: 1px solid white;
+}
+
+</style>
+<ul id=errlog style="display: none;"></ul>
+<script>
+
+window.onerror = (e, f, l, c) => {
+  errlog.style.display = '';
+  const err = document.createElement('li');
+  err.textContent = `[${f.split('/').pop()}:${l}:${c}] ${e}`;
+  errlog.appendChild(err);
+};
+
+</script>
+<script src="/deps/three.min.js"></script>
+<script type=module>
+
+import RTCPeer from '/js/RTCPeer.js'
+
+class View {
+  constructor(props, ...initParams) {
+    this.init(...initParams);
+    this.props = props || {};
+  }
+
+  init(...args) {
+    this.el = this.createElement(...args);
+  }
+
+  // TODO
+  append(child) {
+    this.el.appendChild(child.el);
+  }
+
+  remove() {
+    this.el.parentNode.removeChild(this.el);
+  }
+
+  createElement(tagName, properties) {
+    const el = document.createElement(tagName || 'div');
+    if (properties)
+      Object.assign(el, properties);
+    return el;
+  }
+
+  get props() {
+    return this._props;
+  }
+
+  set props(props) {
+    this._props = props;
+    this.propsChanged();
+  }
+
+  propsChanged() { }
+}
+
+class RTCTestCellView extends View {
+  init() {
+    super.init('div', { className: 'testCell' });
+    this.append(this.idView = new View({}, 'div', { className: 'id' }));
+    this.append(this.midsView = new View({}, 'div', { className: 'mids' }));
+  }
+
+  propsChanged() {
+    const { peer } = this.props;
+    if (peer) {
+      peer.onChange = () => { this.propsChanged(); }
+      if (peer.videoEl.parentNode != this.el)
+        this.el.appendChild(peer.videoEl);
+      this.idView.el.textContent = peer.id;
+      this.midsView.el.textContent = peer.mids.length ? peer.mids.join(', ') : '<none>';
+    }
+  }
+}
+
+class RTCSelfTestCellView extends View {
+  init() {
+    super.init('div', { className: 'testCell' });
+    this.append(this.idView = new View({}, 'div', { className: 'id' }));
+  }
+
+  propsChanged() {
+    const { client } = this.props;
+    if (client)
+      this.el.appendChild(client.canvas);
+    if (client && client.whoami)
+      this.idView.el.textContent = client.whoami.seq;
+  }
+}
+
+class RTCTestView extends View {
+  init() {
+    super.init('div', { className: 'rtcTest' })
+    this.append(this.selfView = new RTCSelfTestCellView());
+    this.peerViews = {};
+  }
+
+  propsChanged() {
+    this.props.client.onPeersChanged = () => {
+      this.propsChanged();
+    };
+    this.selfView.props = { client: this.props.client };
+    for (const k in this.props.client.peers) {
+      if (!(k in this.peerViews))
+        this.append(this.peerViews[k] = new RTCTestCellView());
+      this.peerViews[k].props = { peer: this.props.client.peers[k] };
+    }
+    for (const k in this.peerViews) {
+      if (k in this.props.client.peers)
+        continue;
+      this.peerViews[k].remove();
+      delete this.peerViews[k];
+    }
+  }
+}
+
+class RTCTestPeer {
+  constructor(client, id) {
+    this.client = client;
+    this.id = id;
+    this.mids = [];
+    this.videoEl = document.createElement('video');
+    this.videoEl.autoplay = true;
+    this.videoEl.muted = true;
+  }
+  teardown() {
+    this.videoEl.pause();
+    this.videoEl.srcObject = null;
+    this.videoEl.load();
+  }
+  update(state) {
+    this.state = state;
+    this.onChange();
+  }
+  setMids(mids) {
+    this.mids = mids;
+    this.onChange();
+  }
+  setTracks(tracks) {
+    this.videoEl.srcObject = new MediaStream(tracks);
+    this.videoEl.load();
+  }
+}
+
+class RTCTestClient {
+  constructor() {
+    this.peers = {};
+    this.createSource();
+    this.getConfig()
+      .then(() => {
+        this.connectWs();
+        this.scheduleMovement();
+      });
+  }
+
+  scheduleMovement() {
+    this.movementInterval = setInterval(() => {
+      if (this.ws.readyState != WebSocket.OPEN)
+        return;
+      this.ws.send(JSON.stringify({
+        type: 'state',
+        body: {
+          position: [Math.random() * 100, Math.random() * 100],
+          look: [Math.random() * Math.PI, Math.random() * Math.PI],
+        },
+      }));
+    }, 5000 + Math.random() * 100);
+  }
+
+  getConfig() {
+    return fetch('/config.json')
+      .then(r => r.json())
+      .then(config => {
+        this.config = config;
+      });
+  }
+
+  initPeer() {
+    const rtcPeer = this.rtcPeer = new RTCPeer({
+      config: this.config.rtcConfiguration,
+      sendToPeer: message => {
+        // console.log('send ', ...JSON.parse(JSON.stringify(message)));
+        this.ws.send(JSON.stringify({
+          type: "rtc",
+          body: { to: 0, message },
+        }));
+      },
+    });
+    rtcPeer.setMediaStream(this.mediaStream);
+  }
+
+  createSource() {
+    const canvas = document.createElement('canvas');
+    this.canvas = canvas;
+
+    const scene = new THREE.Scene();
+    const cube = new THREE.Mesh(
+      new THREE.BoxBufferGeometry(1, 1, 1),
+      new THREE.MeshPhongMaterial({ color: 0xff00ff }));
+    cube.position.z = -5;
+    scene.add(cube);
+
+    const light = new THREE.HemisphereLight(0xffffff, 0x222200, 1);
+    scene.add(light);
+
+    const camera = new THREE.PerspectiveCamera(25);
+    const renderer = new THREE.WebGLRenderer({
+      canvas,
+      alpha: false,
+      antialias: true,
+      powerPreference: 'low-power',
+    });
+    renderer.setClearColor(new THREE.Color().setHSL(0.5, 0.7, 0.5), 1);
+
+    renderer.setSize(320, 240, false);
+    camera.aspect = canvas.width / canvas.height;
+    camera.updateProjectionMatrix();
+
+    const schedule = () => {
+      this.animationFrame = requestAnimationFrame(draw);
+    };
+
+    const draw = now => {
+      cube.rotation.x = now / 1000;
+      cube.rotation.y = now / 1000;
+      renderer.render(scene, camera);
+      schedule();
+    };
+
+    schedule();
+    this.mediaStream = canvas.captureStream();
+  }
+
+  getOrCreatePeer(id) {
+    if (id in this.peers)
+      return this.peers[id];
+    const peer = this.peers[id] = new RTCTestPeer(this, id);
+    this.onPeersChanged();
+    return peer;
+  }
+
+  removePeer(id) {
+    this.peers[id].teardown();
+    delete this.peers[id];
+    this.onPeersChanged();
+  }
+
+  connectWs() {
+    const ws = new WebSocket(`${location.protocol == 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+    this.ws = ws;
+    ws.onopen = e => {
+      this.initPeer();
+    };
+    ws.onclose = e => {
+      setTimeout(() => { this.connectWs(); }, 1000);
+      for (const k in this.peers)
+        this.removePeer(k);
+    };
+    ws.onmessage = e => {
+      const message = JSON.parse(e.data);
+      const {type, body} = message;
+      switch (type) {
+      case 'hello':
+        this.whoami = body;
+        document.title = `#${body.seq}`;
+        break;
+      case 'guestUpdate':
+        this.getOrCreatePeer(body.id).update(body.state);
+        break;
+      case 'guestLeaving':
+        this.removePeer(body.id);
+        break;
+      case 'rtc':
+        this.rtcPeer.receiveFromPeer(body.message);
+        break;
+      case 'midMapping':
+        for (const id in body) {
+          const peer = this.peers[id];
+          const mids = body[id];
+          peer.setMids(mids);
+          const tracks = {};
+          for (const mid of mids) {
+            this.rtcPeer.setMidObserver(mid, track => {
+              if (peer.mids != mids) {
+                console.log('old observer, bail');
+                return;
+              }
+              tracks[mid] = track;
+              peer.setTracks(Object.values(tracks));
+            });
+          }
+        }
+        break;
+      default:
+        console.log('unknown ws message:', message);
+      }
+    }
+  }
+}
+
+const testView = new RTCTestView({ client: new RTCTestClient() });
+document.body.appendChild(testView.el);
+
+window.client = testView.props.client;
+
+</script>

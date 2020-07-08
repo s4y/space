@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<link rel=stylesheet href="/style.css">
+<script src="/deps/three.js"></script>
+<div id=room></div>
+<canvas id=glRoom></canvas>
+<script type=module>
+
+import RTCPeer from '/js/RTCPeer.js'
+
+const hqs = location.hash
+  .substr(1)
+  .split('&')
+  .filter(v => v)
+  .map(c => c.split('=').map(decodeURIComponent))
+  .reduce((params, [k, v]) => (params[k] = v, params), {});
+
+const skyMaterial = new THREE.ShaderMaterial( {
+  side: THREE.BackSide,
+  uniforms: {
+    t: { value: 0 },
+  },
+  vertexShader: `
+    varying vec2 p;
+
+    void main() {
+      p = uv*2.-1.;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+    }
+  `,
+
+  fragmentShader: `
+    #include <common>
+
+    // https://thebookofshaders.com/10/
+    float random( vec2 p )
+    {
+      vec2 K1 = vec2(
+      23.14069263277926, // e^pi (Gelfond's constant)
+      2.665144142690225 // 2^sqrt(2) (Gelfond–Schneider constant)
+    );
+      return fract( cos( dot(p,K1) ) * 12345.6789 );
+    }
+
+    varying vec2 p;
+    uniform float t;
+    void main() {
+      vec2 pp = p;
+      // pp.x /= sin(pp.y);
+      // pp += (look * vec3(1, 1, 1) * 2. - 0.5).xy;
+      // vec2 pp = vec2(atan(p.y, p.x), distance(p, vec2(0.0)));
+      // p.x = atan(p.y, p.x);
+      // p.y = op.y;
+      // p.y = length(op);
+
+      // float lat = Ip.y/2.+.5) * PI;
+      // float lon = Ip.x/2.+.5) * PI * 2.;
+      // vec3 p3 = vec3(sin(lat)*cos(lon), sin(lat)*sin(lon), cos(lat));
+      
+
+      // float lon = (p.x/2.+.5)*2.*PI;
+      // float lat = (p.y/2.+.5)*2.*PI;
+      // vec3 p3 = vec3(cos(lon)*cos(lat), sin(lon)*cos(lat), sin(lat));
+
+      vec2 ll = vec2(
+        (p.x / 2. + 0.5) * PI,
+        (p.y / 2. + 0.5) * 2. * PI
+        // cos((p.x/2.+.5)*PI*2.)*(p.y/2.+.5),
+        // sin((p.x/2.+.5)*PI*2.)*(p.y/2.+.5)
+        );
+
+      vec3 p3 = vec3(sin(ll.x) * cos(ll.y), sin(ll.x) * sin(ll.y), cos(ll.x));;
+      // p3 *= 2.;
+
+      p3.z += t / 100.;
+
+      pp = p3.yz*2.-1.;
+      // pp.x /= 4.;
+      // pp = mod(pp, 0.5);
+
+      vec2 nearP = pp - mod(pp, 0.1);
+      gl_FragColor = vec4(clamp(step(random(nearP), 0.5) * (1. - distance(pp, nearP + 0.05) * 200.), 0., 1.));
+      gl_FragColor += max(gl_FragColor, clamp(1. - ll.y - 0.5, 0., 1.));
+      // gl_FragColor = vec4(abs(p3), 1.);
+      // gl_FragColor = vec4(p3.yz, 0., 1.);
+      // gl_FragColor = vec4(pp, 0., 1.);
+      // gl_FragColor = vec4(pp, 0., 1.);
+    }
+  `,
+});
+
+
+const buildGlRoom = (canvas, config) => {
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(60);
+  const listener = new THREE.AudioListener();
+  camera.add(listener);
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    alpha: false,
+    antialias: true,
+    powerPreference: 'high-performance',
+  });
+  renderer.physicallyCorrectLights = true;
+  // renderer.localClippingEnabled = true;
+
+  camera.position.y = 6;
+  camera.rotation.order = 'YXZ';
+
+  const hemiLight = new THREE.HemisphereLight( 0x7FBBFF, 0x34002D, 1 );
+  scene.add(hemiLight);
+
+  for (const props of [
+    { p: [-10, 1, 0], power: 1000 },
+    { p: [10, 1, 0], power: 1000 },
+    { p: [0, 1, 10], power: 1000 },
+    { p: [0, 1, -10], power: 1000 },
+    { p: [0, 7, 0], power: 2000 },
+  ]) {
+    const light = new THREE.PointLight(0xffffff, 100);
+    light.power = props.power;
+    light.decay = 2;
+    light.position.set(...props.p);
+    scene.add(light);
+  }
+
+  const guests = {};
+  let mediaStream = null;
+
+  const sky = new THREE.Mesh(
+    new THREE.SphereBufferGeometry(1000, 32, 32, 0, 2 * Math.PI, 0, 0.5 * Math.PI),
+    skyMaterial);
+  sky.onBeforeRender = () => {
+    sky.material.uniforms.t.value = performance.now() / 1000;
+  };
+  scene.add(sky);
+
+  const updateBalloons = [];
+  const balloonGeometry = new THREE.IcosahedronBufferGeometry(5, 0);
+  for (let i = 0; i < 10; i++) {
+    const rowLight = new THREE.PointLight(0xffffff, 100);
+    rowLight.power = 2000;
+    rowLight.decay = 2;
+    rowLight.position.y = -10;
+    for (let j = 0; j < 10; j++) {
+      const balloon = new THREE.Mesh(
+        balloonGeometry,
+        new THREE.MeshPhongMaterial({
+          color: 0xffffff,
+          shininess: 20,
+        }));
+      if (j == i)
+        balloon.add(rowLight);
+      updateBalloons.push((now, byteFreqData) => {
+        balloon.position.y = 40 + motion * (Math.sin(now / 10000 + i / 2. + j * 3.) * 10.);
+        balloon.material.emissive.setHSL((i + j) / 40 + now / 16000, 0.5, + (byteFreqData[i*10+j]*musicReactivity) / 255 * 0.8);
+      });
+      balloon.position.z = j * 15 - 150;
+      balloon.position.x = i * 15 - 150;
+      scene.add(balloon);
+    }
+  }
+
+  const livingRoom = new THREE.Group();
+  {
+    let couch
+  }
+
+  const floor = new THREE.Mesh(
+    new THREE.PlaneBufferGeometry(2000, 2000),
+    new THREE.MeshPhongMaterial( {
+      color: 0x222222,
+      emissive: 0x221122,
+      shininess: 20,
+    } ));
+  floor.rotation.x = -Math.PI / 2;
+  floor.rotation.order = 'YXZ';
+  scene.add(floor);
+
+  const resize = () => {
+    renderer.setSize(
+      canvas.clientWidth * devicePixelRatio,
+      canvas.clientHeight * devicePixelRatio, false);
+    camera.aspect = canvas.width / canvas.height;
+    camera.updateProjectionMatrix();
+
+    // // https://stackoverflow.com/questions/13350875/three-js-width-of-view/13351534#13351534
+    // var vFOV = THREE.MathUtils.degToRad( camera.fov );
+    // var height = 2 * Math.tan( vFOV / 2 ) * sky.position.z;
+    // var width = height * camera.aspect;
+    // sky.geometry = new THREE.PlaneGeometry(-width, -height);
+  };
+  window.addEventListener('resize', resize);
+
+  const headMaterial = new THREE.ShaderMaterial( {
+    transparent: true,
+    side: THREE.DoubleSide,
+    uniforms: {
+      t: { value: 0 },
+      map: { type: 't', value: null },
+      aspect: { value: 1 },
+    },
+    vertexShader: `
+      varying vec2 p;
+      // varying vec3 norm;
+
+      void main() {
+        p = uv*2.-1.;
+        // norm = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+      }
+    `,
+
+    fragmentShader: `
+      #include <common>
+
+      varying vec2 p;
+      // varying vec3 norm;
+      uniform sampler2D map;
+      uniform float t;
+      uniform float aspect;
+      void main() {
+        vec2 uv = p * 1.;
+        uv.x /= aspect;
+        uv *= cos(uv * PI / 8.) * 1.;
+        uv = uv/2.+.5;
+        gl_FragColor = texture2D(map, uv);
+
+        float bri = 1. - pow(distance(p, vec2(0.0)) * 1.2 - 0.1 - sin(p.x * (p.y+0.5) * 2. + t) * 0.1, 9.);
+        gl_FragColor *= 1.0-step(bri, 0.5);
+        gl_FragColor.rgb *= bri;
+      }
+    `,
+  } );
+
+  const posAudioParams = {
+    refDistance: 0,
+    rolloffFactor: 0,
+  };
+
+  const getOrCreateGuest = (id, remoteGuest) => {
+    let guest = guests[id];
+    if (guest)
+      return guest;
+
+    const geometry = new THREE.BoxBufferGeometry(2.5, 2.5, 2.5);
+    const material = new THREE.MeshPhongMaterial( { color: 0xaaaaaa, emissive: 0x777700 } );
+    const cube = new THREE.Mesh( geometry, material );
+
+    const videoPanel = new THREE.Mesh(
+      new THREE.CylinderBufferGeometry(3.5, 3.5, 5, 64, 1, true, Math.PI*0.25 * 3., Math.PI/2.).scale(1, 1, 0.5).translate(0, 0, -0.4),
+      headMaterial.clone(),
+    );
+    videoPanel.onBeforeRender = () => {
+      videoPanel.material.uniforms.t.value = performance.now() / 1000;
+    };
+
+    const head = new THREE.Group();
+    head.add(cube);
+    head.add(videoPanel);
+    head.position.y = 6.4;
+    head.rotation.order = 'YXZ';
+
+
+    const body = new THREE.Mesh(
+      new THREE.CylinderBufferGeometry(.9, .6, 4, 64),
+      new THREE.MeshPhongMaterial( { color: 0xaaaaaa, emissive: 0x555555 } )
+    );
+    body.position.y = 2;
+
+    const group = new THREE.Group();
+    group.add(head);
+    group.add(body);
+    scene.add(group);
+
+    const videoEl = document.createElement('video');
+    videoEl.autoplay = true;
+    videoEl.muted = true;
+
+    const posSound = new THREE.PositionalAudio(listener);
+    posSound.setRefDistance(posAudioParams.refDistance);
+    posSound.setRolloffFactor(posAudioParams.rolloffFactor);
+    posSound.setDistanceModel('exponential');
+    // posSound.setDirectionalCone(180, 230, 0.1);
+    videoPanel.add(posSound);
+
+
+    const videoTexture = new THREE.VideoTexture(videoEl);
+    videoTexture.minFilter = THREE.LinearFilter;
+    videoTexture.magFilter = THREE.LinearFilter;
+    videoTexture.format = THREE.RGBFormat;
+    videoTexture.offset.set(-0.25, 0);
+    videoEl.addEventListener('playing', () => {
+      console.log('go go gadget playing', videoEl.videoWidth, videoEl.videoHeight);
+      videoPanel.material.uniforms.map.value = videoTexture;
+      videoPanel.material.uniforms.aspect.value = videoEl.videoWidth / videoEl.videoHeight;
+    });
+
+    let videoTrack, audioTrack;
+
+    const ret = (guests[id] = {
+      group, head, body, posSound,
+      set videoTrack(newVideoTrack) {
+        if (newVideoTrack == videoTrack)
+          return;
+        videoTrack = newVideoTrack;
+        videoEl.srcObject = videoTrack ? new MediaStream([videoTrack]) : null;
+        videoEl.load();
+        videoEl.play();
+      },
+      set audioTrack(newAudioTrack) {
+        if (newAudioTrack == audioTrack)
+          return;
+        audioTrack = newAudioTrack;
+        if (audioTrack) {
+          // TODO: Leak!?!
+          const audioEl = document.createElement('audio');
+          audioEl.autoplay = true;
+          // audioEl.muted = true;
+          audioEl.srcObject = new MediaStream([audioTrack]);
+          audioEl.load();
+          // posSound.setMediaStreamSource(audioEl.captureStream()); 
+          console.log(audioEl);
+          window.top.ael = audioEl;
+        } else
+          posSound.disconnect();
+      },
+    });
+
+    ret.videoTrack = remoteGuest.videoTrack;
+    ret.audioTrack = remoteGuest.audioTrack;
+
+    return ret;
+  };
+
+  const updateGuest = (id, remoteGuest) => {
+    const guest = getOrCreateGuest(id, remoteGuest);
+    const { state } = remoteGuest;
+    guest.head.rotation.y = -state.look[0];
+    guest.head.rotation.x = -state.look[1];
+
+    guest.group.position.x = state.position[0];
+    guest.group.position.z = -state.position[1];
+  }
+
+  const updateMedia = (id, { videoTrack, audioTrack }) => {
+    const guest = guests[id];
+    if (!guest)
+      console.log('updating media for unknown guest', id);
+    guest.videoTrack = videoTrack;
+    guest.audioTrack = audioTrack;
+  };
+
+  const removeGuest = id => {
+    const guest = guests[id];
+    if (!guest)
+      return;
+    scene.remove(guest.group);
+    // guest.peer.close();
+    delete guests[id];
+  };
+
+  const handleRTC = (from, message) => {
+    // if (from == 0)
+    //   return peer && peer.receiveFromPeer(message);
+    const guest = guests[from];
+    if (!guest)
+      return;
+      guest.peer.receiveFromPeer(message);
+  }
+
+  const setMediaStream = stream => {
+    mediaStream = stream;
+    // if (peer)
+    //   peer.setMediaStream(stream);
+    // for (const k in guests)
+    //   guests[k].peer.setMediaStream(stream);
+  }
+
+  const cubez = [];
+  for (let i = 0; i < 10; i++) {
+    const size = 20 - (i * 0.1);
+    const cube = new THREE.Mesh(
+      new THREE.BoxBufferGeometry(size, 1, size),
+      new THREE.MeshPhongMaterial( {
+        color: 0xaaaaaa,
+        emissive: 0x000000,
+        shininess: 20,
+      } )
+    );
+    cube.position.y = 20;
+    cube.rotation.order = 'YXZ';
+    scene.add(cube);
+    cubez.push(cube);
+  }
+
+  const byteFreqData = new Uint8Array(1024);
+
+  const draw = ({ now, look, position }) => {
+    camera.position.x = position[0];// - Math.sin(look[0]) * 8;
+    camera.position.z = -position[1];// + Math.cos(look[0]) * 8;
+    camera.rotation.y = -look[0];
+    camera.rotation.x = -look[1];// - 0.2;
+
+    sky.position.x = floor.position.x = camera.position.x;
+    sky.position.z = floor.position.z = camera.position.z;
+    floor.rotation.y = camera.rotation.y;
+
+    if (musicAnalyser)
+      musicAnalyser.getByteFrequencyData(byteFreqData);
+
+    for (let i = 0; i < cubez.length; i++) {
+      const cube = cubez[i];
+      const seq = (now / 100000) % 16;
+      const florp = seq - (seq % 1) * (1 - Math.pow(seq % 1, 100));
+      const flap = (florp/16) * Math.PI * 2;
+      cube.rotation.z = Math.PI / 4;
+      cube.rotation.x = Math.atan(1/Math.SQRT2) + flap;
+      cube.rotation.y = now / 10000 * (i+1);
+      // const scale = 1 + Math.pow(byteFreqData[i*10]/255, 4) * 2.; 
+      // cube.scale.set(scale, scale, scale);
+    }
+
+    updateBalloons.forEach(f => f(now, byteFreqData));
+
+    renderer.setClearColor(new THREE.Color().setHSL(0.5, 0.7, 0.01), 1);
+    renderer.render(scene, camera);
+  };
+
+  const clearGuests = () => {
+    for (const k in guests) {
+      removeGuest(k);
+    }
+  };
+
+  window.top.ServiceManager.want('knobs', window, knobs => {
+    knobs.observe('posAudio.refDistance', window, refDistance => {
+      posAudioParams.refDistance = refDistance;
+      for (const k in guests)
+        guests[k].posSound.setRefDistance(refDistance * 50);
+    }, 1);
+    knobs.observe('posAudio.rolloffFactor', window, rolloffFactor => {
+      posAudioParams.rolloffFactor = rolloffFactor;
+      for (const k in guests)
+        guests[k].posSound.setRolloffFactor(rolloffFactor * 10);
+    }, 1);
+  });
+
+  resize();
+  return {
+    draw, updateGuest, removeGuest, updateMedia, clearGuests, handleRTC, setMediaStream
+  };
+}
+
+const buildRoom = (el, config) => {
+  const direction = {
+    87: [0, 1],
+    83: [0, -1],
+    65: [-1, 0],
+    68: [1, 0],
+  };
+  let look = [0, 0];
+  let position = [Math.random() * 20 - 10, -90 + Math.random() * 10 - 5];
+  const keysDown = {};
+  const velocity = [0, 0];
+  const keyAcceleration = [0, 0];
+  const updateAcceleration = () => {
+    let x = 0;
+    let z = 0;
+    for (const k in keysDown) {
+      if (!keysDown[k])
+        continue;
+      x += direction[k][0];
+      z += direction[k][1];
+    }
+    const accel = [
+      x * Math.cos(look[0]) + z * Math.sin(look[0]),
+      z * Math.cos(-look[0]) + x * Math.sin(-look[0]),
+    ];
+    const mag = Math.sqrt(Math.pow(accel[0], 2) + Math.pow(accel[1], 2));
+    keyAcceleration[0] = accel[0] / mag || 0;
+    keyAcceleration[1] = accel[1] / mag || 0;
+  };
+  let handleKey = down => e => {
+    if (e.keyCode in direction) {
+      keysDown[e.keyCode] = down;
+      updateAcceleration();
+      e.preventDefault();
+    }
+  };
+
+  if (sessionStorage.playerPosition) {
+    try {
+      ({ look, position } = JSON.parse(sessionStorage.playerPosition));
+    } catch (e) {
+      console.warn("Failed to restore player position:", e);
+      sessionStorage.playerPosition = null;
+    }
+  }
+
+  let dirty = false;
+  window.top.addEventListener('keydown', handleKey(true));
+  window.top.addEventListener('keyup', handleKey(false));
+
+  const persist = () => {
+    sessionStorage.playerPosition = JSON.stringify({ look, position, });
+  }
+
+  const moveListener = e => {
+    if (e.movementX != null) {
+      look[0] += (e.movementX / document.body.clientWidth * 2) * 0.5;
+      look[1] += (e.movementY / document.body.clientWidth * 2) * 0.5;
+    } else {
+      look[0] = (e.clientX / document.body.clientWidth * 2 - 1) * 0.5;
+      look[1] = (e.clientY / document.body.clientHeight * 2 - 1) * 0.5;
+    }
+    look[0] = look[0] % (Math.PI * 2);
+    look[1] = Math.min(Math.PI / 2, look[1]);
+    look[1] = Math.max(-Math.PI / 2, look[1]);
+    dirty = true;
+    persist();
+  }
+
+  const topDoc = window.top.document;
+  let isMoving = false;
+  let mouseDownTime;
+  const cancel = () => {
+    if (!isMoving)
+      return;
+    topDoc.body.removeEventListener('mousemove', moveListener);
+    if (topDoc.pointerLockElement)
+      window.top.topDoc.exitPointerLock();
+  }
+  window.addEventListener('mousedown', e => {
+    e.preventDefault();
+    topDoc.body.addEventListener('mousemove', moveListener);
+    topDoc.body.requestPointerLock();
+    isMoving = true;
+    mouseDownTime = performance.now();
+  });
+  window.addEventListener('mouseup', e => {
+    if (performance.now() - mouseDownTime > 250)
+      cancel();
+  });
+  topDoc.addEventListener('pointerlockchange', e => {
+    if (!topDoc.pointerLockElement)
+      cancel();
+  });
+  if (topDoc.pointerLockElement)
+    topDoc.body.addEventListener('mousemove', moveListener);
+
+  const applyAcceleration = (v, a) => {
+    const vOut = Math.max(-1, Math.min(1, 0.8 * v + a));
+    return Math.abs(vOut) > 0.001 ? vOut : 0;
+  };
+
+  const glRoom = buildGlRoom(document.getElementById('glRoom'), {
+    roomEl: el,
+    ...config
+  });
+
+  const ret = {
+    get position() { return position; },
+    set position(p) { position = p; },
+    get look() { return look; },
+    set look(l) { look = l; },
+    onchange: null,
+    updateGuest: glRoom.updateGuest,
+    updateMedia: glRoom.updateMedia,
+    removeGuest: glRoom.removeGuest,
+    clearGuests: glRoom.clearGuests,
+    handleRTC: glRoom.handleRTC,
+    setMediaStream: glRoom.setMediaStream,
+  };
+
+  let animationFrame;
+  const draw = rawNow => {
+    const now = rawNow + timeOffset;
+    velocity[0] = applyAcceleration(velocity[0], keyAcceleration[0] * 0.05);
+    velocity[1] = applyAcceleration(velocity[1], keyAcceleration[1] * 0.05);
+    position[0] += velocity[0];
+    position[1] += velocity[1];
+    glRoom.draw({ now, position, look });
+    if (ret.onchange && (dirty || velocity[0] || velocity[1])) {
+      dirty = false;
+      ret.onchange && ret.onchange();
+    }
+    animationFrame = requestAnimationFrame(draw);
+    persist();
+  };
+
+  animationFrame = requestAnimationFrame(draw);
+
+  return ret;
+}
+
+let config;
+let timeOffset;
+let room;
+let whoami;
+let musicAnalyser;
+let musicReactivity = 0;
+let motion = 0;
+let mediaStream;
+let rtcPeer;
+
+const setRemoteRoom = (config, remoteRoom) => {
+
+  remoteRoom.observe('update', window, (id, state) => {
+    if (state)
+      room.updateGuest(id, state);
+    else
+      room.removeGuest(id);
+  });
+
+  remoteRoom.observe('updateMedia', window, (id, guest) => {
+    room.updateMedia(id, guest);
+  });
+
+  remoteRoom.observe('clear', window, () => {
+    room.clearGuests();
+  });
+
+  room.onchange = () => {
+    const { position, look } = room;
+    remoteRoom.setState({ position, look });
+  }
+
+  room.position = remoteRoom.state.position;
+  room.look = remoteRoom.state.look;
+
+  room.clearGuests();
+  for (const k in remoteRoom.guests)
+    room.updateGuest(k, remoteRoom.guests[k]);
+
+  /*
+  const initRTC = () => {
+    if (rtcPeer)
+      rtcPeer.close();
+    window.rtcPeer = rtcPeer = new RTCPeer({
+      tweakSDP: sdp => sdp
+        // TODO make tuneable
+        .replace(/(m=video.*\r\n)/g, `$1b=AS:100\r\n`)
+        .replace('useinbandfec=1', 'useinbandfec=1; stereo=1; maxaveragebitrate=40')
+        ,
+      config: config.rtcConfiguration,
+      sendToPeer: message => {
+        // console.log('send ', ...JSON.parse(JSON.stringify(message)));
+        ws.send({
+          type: "rtc",
+          body: { to: 0, message },
+        });
+      },
+        // getOrCreateVideoEl().srcObject = stream;
+        // videoTexture = new THREE.VideoTexture(videoEl);
+        // videoTexture.minFilter = THREE.LinearFilter;
+        // videoTexture.magFilter = THREE.LinearFilter;
+        // videoTexture.format = THREE.RGBFormat;
+        // cube.geometry = new THREE.BoxGeometry(3 * (4/3), 3, 3);
+        // cube.material = new THREE.MeshBasicMaterial( { color: 0xffffff, map: videoTexture, side: THREE.DoubleSide  } );
+      // },
+    });
+    if (mediaStream)
+      rtcPeer.setMediaStream(mediaStream);
+
+  };
+
+  room.sendToPeer = (to, message) => {
+    ws.send({
+      type: "rtc",
+      body: { to, message },
+    });
+  };
+
+  console.log('hithithit');
+  ws.observe('message', window, message => {
+    const {type, body} = message;
+    switch (type) {
+      case "hello":
+        whoami = body;
+        break;
+      case "guestUpdate":
+        room.updateGuest(body.id, body.state);
+        break;
+      case "midMapping":
+        room.updateMidMapping(body);
+        break;
+      case "guestLeaving":
+        room.removeGuest(body.id);
+        break;
+      case "rtc":
+        rtcPeer.receiveFromPeer(body.message);
+        // room.handleRTC(body.from, body.message);
+        break;
+      default:
+        console.log("unknown message type from server:", message);
+    }
+  });
+  */
+};
+
+const start = () => {
+  // const mediaPromise = navigator.mediaDevices.getUserMedia({
+  //   video: { width: 320, height: 240 },
+  //   audio: true,
+  // });
+
+  fetch('/config.json')
+    .then(r => r.json())
+    .then(config => {
+      timeOffset = new Date() - config.zeroTime
+      room = buildRoom(document.getElementById('room'));
+
+      window.top.ServiceManager.want('room', window, room => {
+        setRemoteRoom(config, room);
+      });
+      // return mediaPromise;
+    })
+    // .then(stream => {
+    //   mediaStream = stream;
+    //   if (rtcPeer)
+    //     rtcPeer.setMediaStream(stream);
+    // });
+
+    window.top.ServiceManager.want('music', window, music => {
+      musicAnalyser = music.analyser;
+    });
+
+    window.top.ServiceManager.want('knobs', window, knobs => {
+      knobs.observe('world.musicReactivity', window, v => {
+        musicReactivity = v;
+      }, 1);
+      knobs.observe('world.motion', window, v => {
+        motion = v;
+      }, 1);
+    });
+};
+
+if (window.top.waitForGesture === true) {
+  window.startOnGesture = start;
+} else {
+  start();
+}
+
+if (window != window.top) {
+  window.addEventListener('focus', e => {
+    window.top.focus();
+  });
+}
+
+</script>

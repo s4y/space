@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<body>
+<script type=module>
+
+let knobs = {
+};
+
+try {
+  Object.assign(knobs, JSON.parse(window.localStorage.knobs || '{}'));
+} catch (e) {
+  console.log('doot', e);
+}
+
+let conn;
+
+const connectWs = () => {
+  const ws = new WebSocket(`${location.protocol == 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+  ws.onclose = e => {
+    setTimeout(connectWs, 1000);
+  };
+  ws.onmessage = e => {
+    const message = JSON.parse(e.data);
+    const {type, body} = message;
+    console.log('message', type, body);
+  };
+  ws.onopen = e => {
+    for (const k in knobs)
+      conn.send('setKnob', { name: k, value: knobs[k] });
+  };
+
+  conn = {
+    send(type, body) {
+      ws.send(JSON.stringify({ type, body }));
+    }
+  };
+};
+
+connectWs();
+
+let midiMap = {
+  knob7: 'world.musicReactivity',
+  fader7: 'world.motion',
+  knob9: 'music.volumeRampRate',
+  fader9: 'music.volume',
+
+  knob1: 'posAudio.refDistance',
+  knob2: 'posAudio.rolloffFactor',
+};
+
+import PMIDIP30Controller from '/js/PMIDIP30Controller.js'
+
+const onMidiChange = (control, value) => {
+  console.log('midi', control, value);
+  const name = midiMap[control];
+  if (!name)
+    return;
+  conn.send('setKnob', { name, value });
+  knobs[name] = value;
+  window.localStorage.knobs = JSON.stringify(knobs);
+};
+
+navigator.requestMIDIAccess({
+  sysex: false
+}).then(midi => {
+  const input = midi.inputs.values().next().value;
+  new PMIDIP30Controller(input, onMidiChange);
+});
+
+</script>

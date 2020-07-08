@@ -1,0 +1,8 @@
+{
+  "zeroTime": 1593206857158,
+  "rtcConfiguration": {
+    "iceServers": [
+      { "urls": [ "stun:stun.l.google.com:19302" ] }
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<script>
+
+window.top.ServiceManager.register('userMedia', {
+  mediaPromise: null,
+  get() {
+    if (!this.mediaPromise) {
+      this.mediaPromise = navigator.mediaDevices.getUserMedia({
+        video: { width: 320, height: 240 },
+        audio: true,
+      });
+    } 
+    return this.mediaPromise;
+  }
+});
+
+</script>

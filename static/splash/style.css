@@ -1,0 +1,44 @@
+html {
+  padding: 1em;
+}
+
+body {
+  border: 0.2em double black;
+  max-width: 25em;
+  padding: 0 1em;
+  margin: 1em auto;
+  font: 22px 'EB Garamond', serif;
+  text-align: center;
+
+  box-shadow: 
+    0 10px 20px rgba(0, 0, 0, 0.2),
+    0 30px 40px rgba(0, 0, 0, 0.1)
+  ;
+}
+
+#seal {
+  width: 70px;
+  height: 70px;
+  display: block;
+  margin: 1em auto;
+}
+
+a:link, a:visited {
+  color: #00c;
+}
+
+.nw {
+  white-space: nowrap;
+}
+
+.imp {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+hr {
+  width: 50%;
+  border: none;
+  border-top: 1px solid #aaa;
+}
+

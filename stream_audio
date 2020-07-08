@@ -1,0 +1,3 @@
+#!/bin/sh
+
+while :; do sox -t coreaudio "BlackHole 16ch" -t mp3 - remix 1 2 | nc 127.0.0.1 8033; sleep 5; done

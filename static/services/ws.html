@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<script type=module>
+
+import Observers from '/js/Observers.js';
+
+const ws = {
+  open: false,
+  observers: new Observers,
+  observe(key, win, cb) {
+    this.observers.add(key, win, cb);
+    if (key == 'open' && this.open)
+      cb();
+  },
+  send(json) {
+    this.ws.send(JSON.stringify(json));
+  },
+  didClose() {
+    this.open = false;
+    this.observers.fire('close');
+    this.room.disconnectRTC();
+  },
+  connect() {
+    if (this.ws) {
+      this.ws.onclose = null;
+      this.ws.close();
+      this.didClose();
+    }
+    const ws = new WebSocket(`${location.protocol == 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+    this.ws = ws;
+    ws.onopen = e => {
+      this.open = true;
+      this.observers.fire('open');
+      this.sendState();
+      this.room.connectRTC(this);
+    };
+    ws.onclose = e => {
+      this.didClose();
+      setTimeout(() => { this.connect(); }, 1000);
+    };
+    ws.onmessage = e => {
+      const message = JSON.parse(e.data);
+      const {type, body} = message;
+      switch (type) {
+      case 'knob':
+        this.knobs.set(body.name, body.value);
+      case "hello":
+        this.room.setWhoami(body);
+        break;
+      case "guestUpdate":
+        this.room.updateGuest(body.id, body.state);
+        break;
+      case "midMapping":
+        this.room.updateMidMapping(body);
+        break;
+      case "guestLeaving":
+        this.room.removeGuest(body.id);
+        break;
+      case "rtc":
+        this.room.handleRTC(body.from, body.message);
+        break;
+      default:
+        console.log("unknown message type from server:", message);
+      }
+    };
+  },
+  sendState() {
+    this.send({
+      type: "state",
+      body: this.room.state,
+    });
+  },
+  setRoom(room) {
+    room.observers.add('state', window, () => {
+      if (this.ws.readyState != WebSocket.OPEN)
+        return;
+      this.sendState();
+    });
+    room.clearGuests();
+    this.room = room;
+    this.connect();
+  },
+};
+
+window.top.ServiceManager.register('ws', ws);
+
+window.top.ServiceManager.want('knobs', window, knobs => {
+  ws.knobs = knobs;
+});
+
+window.top.ServiceManager.want('room', window, room => {
+  ws.setRoom(room);
+});
+
+
+</script>

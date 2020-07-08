@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<script>
+
+
+const music = {
+  normalVolume: 0,
+  resume() {
+    this.ac.resume();
+  },
+  start() {
+    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    this.ac = ac;
+
+    const audioEl = document.createElement('audio');
+    audioEl.autoplay = true;
+    const musicSource = ac.createMediaElementSource(audioEl);
+    const musicAnalyser = ac.createAnalyser();
+    this.analyser = musicAnalyser;
+    musicAnalyser.smoothingTimeConstant = 0.8;
+
+    const musicGain = ac.createGain();
+    this.musicGain = musicGain;
+    musicSource.connect(musicGain);
+    musicSource.connect(musicAnalyser);
+    musicGain.connect(ac.destination);
+    musicGain.gain.setValueAtTime(0, ac.currentTime);
+
+    audioEl.addEventListener('playing', e => {
+      musicGain.gain.setValueAtTime(0, ac.currentTime);
+      this.updateVolume();
+    });
+
+    audioEl.addEventListener('stalled', e => {
+      musicGain.gain.setValueAtTime(0, ac.currentTime);
+    });
+
+    audioEl.src = '/media/music'; 
+  },
+  updateVolume() {
+    this.musicGain.gain.cancelAndHoldAtTime(this.ac.currentTime);
+    this.musicGain.gain.linearRampToValueAtTime(this.normalVolume, this.ac.currentTime + this.volumeRampRate);
+  },
+};
+
+window.top.ServiceManager.want('knobs', window, knobs => {
+  music.start();
+  knobs.observe('music.volumeRampRate', window, v => {
+    music.volumeRampRate = v * 20;
+    console.log('volume ramp rate changed to (seconds)', music.volumeRampRate);
+  }, 1);
+  knobs.observe('music.volume', window, v => {
+    music.normalVolume = v;
+    console.log('music volume changed to', v);
+    music.updateVolume();
+  }, 0);
+});
+
+
+window.top.ServiceManager.register('music', music);
+
+</script>
