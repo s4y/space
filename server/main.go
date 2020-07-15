@@ -10,14 +10,11 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
 	"sync"
 
 	"github.com/gorilla/websocket"
 	"github.com/s4y/reserve"
 )
-
-var baseDirectory string = filepath.Join(os.Getenv("GOPATH"), "src/github.com/s4y/space/")
 
 type ClientMessage struct {
 	Type string          `json:"type"`
@@ -179,7 +176,7 @@ func (w *World) RemoveGuest(seq uint32) {
 }
 
 func readConfig() {
-	configFile, err := os.Open(filepath.Join(baseDirectory, "static/config.json"))
+	configFile, err := os.Open("static/config.json")
 	if err != nil {
 		panic(err)
 	}
@@ -204,7 +201,7 @@ var knobs map[string]interface{} = make(map[string]interface{})
 
 func startManagementServer() {
 	mux := http.NewServeMux()
-	mux.Handle("/", reserve.FileServer(http.Dir(filepath.Join(baseDirectory, "static-management"))))
+	mux.Handle("/", reserve.FileServer("static-management"))
 
 	managementAddr := "127.0.0.1:8034"
 	fmt.Printf("Management UI (only) at http://%s/\n", managementAddr)
@@ -338,7 +335,7 @@ func main() {
 	})
 	http.Handle("/media/music", makeMusicHandler())
 	// http.Handle("/astream/", http.FileServer(http.Dir(".")))
-	http.Handle("/", reserve.FileServer(http.Dir(filepath.Join(baseDirectory, "static"))))
+	http.Handle("/", reserve.FileServer("static"))
 
 	go startManagementServer()
 	log.Fatal(http.Serve(ln, nil))
