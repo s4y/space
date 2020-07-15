@@ -107,12 +107,18 @@ func (pl *WebRTCPartyLine) AddPeer(ctx context.Context, p *WebRTCPartyLinePeer) 
 		p.tracks = append(p.tracks, trackAndPli)
 
 		// TODO
-		ticker := time.NewTicker(rtcpPLIInterval)
 		go func() {
-			for range ticker.C {
-				pliChan <- true
+			ticker := time.NewTicker(rtcpPLIInterval)
+			defer ticker.Stop()
+			defer close(pliChan)
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					pliChan <- true
+				}
 			}
-			close(pliChan)
 		}()
 
 		go func() {
@@ -125,7 +131,6 @@ func (pl *WebRTCPartyLine) AddPeer(ctx context.Context, p *WebRTCPartyLinePeer) 
 
 		go func() {
 			rtpBuf := make([]byte, 1400)
-			defer ticker.Stop()
 			for {
 				i, readErr := track.Read(rtpBuf)
 				if readErr == io.EOF {
