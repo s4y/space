@@ -1,32 +1,61 @@
 <!DOCTYPE html>
 <script type=module>
 
+import Service from '/js/Service.js';
 import Observers from '/js/Observers.js';
 import RTCPeer from '/js/RTCPeer.js'
 
-const room = {
-  mediaStream: new MediaStream(),
-  state: (() => {
-    let state;
+class Room {
+  constructor() {
+    this.observers = new Observers();
+    this.mediaStream = new MediaStream();
+    this.guests = {};
+
     if (sessionStorage.playerState) {
       try {
-        state = JSON.parse(sessionStorage.playerState);
+        this.state = JSON.parse(sessionStorage.playerState);
       } catch (e) {
         console.warn("Failed to restore player position:", e);
         sessionStorage.playerState = null;
       }
     }
-    if (!state) {
-      state = {
+    if (!this.state) {
+      this.state = {
         position: [Math.random() * 20 - 10, -90 + Math.random() * 10 - 5],
         look: [0, 0],
       };
     }
-    return state;
-  })(),
-  observers: new Observers(),
-  observe(...args) { return this.observers.add(...args); },
-  guests: {},
+  }
+  setWs(ws) {
+    this.ws = ws;
+    ws.observe('open', () => {
+      ws.send({
+        type: "join",
+        body: this.state,
+      });
+    });
+    ws.observe('close', () => {
+      this.disconnectRTC();
+      this.clearGuests();
+    });
+    ws.observe('hello', body => {
+      this.whoami = body;
+      this.observers.fire('whoami', body);
+      this.connectRTC()
+    });
+    ws.observe('guestUpdate', body => {
+      this.updateGuest(body.id, body.state);
+    });
+    ws.observe('guestLeaving', body => {
+      this.removeGuest(body.id);
+    });
+    ws.observe('rtc', body => {
+      this.handleRTC(body.from, body.message);
+    });
+    ws.observe('midMapping', body => {
+      this.updateMidMapping(body);
+    });
+  }
   updateGuest(id, state) {
     const guest = this.guests[id] || (this.guests[id] = {
       videoTrack: null,
@@ -35,64 +64,71 @@ const room = {
     });
     guest.state = state;
     this.observers.fire('update', id, guest);
-  },
+  }
   removeGuest(id) {
     delete this.guests[id];
     this.observers.fire('update', id, null);
-  },
+  }
   clearGuests() {
     this.guests = {};
     this.observers.fire('clear');
-  },
+  }
   updateMidMapping(mapping) {
     for (const id in mapping) {
       const mids = mapping[id];
       const guest = this.guests[id];
+      if (!guest)
+        continue;
       guest.mids = mids;
       for (const mid of mids) {
         this.rtcPeer.setMidObserver(mid, track => {
           if (guest.mids != mids) {
             console.log('old observer, bail');
             return;
-          } else {
-            console.log('good observer!');
           }
           guest[track.kind == 'video' ? 'videoTrack' : 'audioTrack'] = track;
           this.observers.fire('updateMedia', id, guest);
         });
       }
     }
-  },
+  }
 
   handleRTC(from, message) {
-    this.rtcPeer.receiveFromPeer(message);
-  },
+    if (this.rtcPeer)
+      this.rtcPeer.receiveFromPeer(message);
+  }
   setWhoami(whoami) {
     this.whoami = whoami;
     this.observers.fire('whoami', whoami);
-  },
+  }
   setState(state) {
     sessionStorage.playerState = JSON.stringify(state);
     this.state = state;
     this.observers.fire('state', state);
-  },
-  connectRTC(ws) {
+    if (this.ws) {
+      this.ws.send({
+        type: "state",
+        body: this.state,
+      });
+    }
+  }
+  connectRTC() {
     this.disconnectRTC();
     this.rtcPeer = new RTCPeer({
       sendToPeer: message => {
-        ws.send({
+        this.ws.send({
           type: "rtc",
           body: { to: 0, message },
         });
       },
       mediaStream: this.mediaStream,
     });
-  },
+  }
   disconnectRTC() {
     if (this.rtcPeer) 
       this.rtcPeer.close();
     this.rtcPeer = null;
-  },
+  }
   setMediaStream(mediaStream) {
     // TODO: use replaceTrack() instead?
     for (const track of this.mediaStream.getTracks())
@@ -101,13 +137,15 @@ const room = {
       this.mediaStream.addTrack(track);
     if (this.rtcPeer)
       this.rtcPeer.setMediaStream(this.mediaStream);
-  },
+  }
   setVisible(visible) {
     // console.log('setVisible:', visible, this.mediaStream.getTracks());
     // for (const track of this.mediaStream.getTracks())
     //   track.enabled = visible;
-  },
-};
+  }
+}
+
+const room = new Room();
 
 const onVisibilityChange = (e) => {
   room.setVisible(window.top.document.visibilityState == 'visible');
@@ -117,14 +155,38 @@ window.top.addEventListener('visibilitychange', onVisibilityChange);
 
 window.addEventListener('unload', () => {
   window.top.removeEventListener('visibilitychange', onVisibilityChange);
+  room.disconnectRTC();
 });
 
-window.top.ServiceManager.register('room', room);
+onVisibilityChange();
 
-window.top.ServiceManager.want('userMedia', window, userMedia => {
-  userMedia.get().then(stream => {
+Service.get('userMedia', userMedia => {
+  userMedia.observe('stream', stream => {
     room.setMediaStream(stream);
   });
 });
+
+Service.get('ws', ws => room.setWs(ws));
+
+class RoomClient {
+  constructor(context) {
+    this.context = context;
+  }
+  observe(key, cb) {
+    return room.observers.add(key, this.context, cb);
+  }
+  get state() {
+    return room.state;
+  }
+  get guests() {
+    return room.guests;
+  }
+  setState(state) {
+    room.setState(state);
+  }
+};
+
+const serviceCb = context => new RoomClient(context);
+Service.register('room', serviceCb);
 
 </script>

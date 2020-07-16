@@ -1,11 +1,22 @@
 <!DOCTYPE html>
 <script type=module>
 
+import Service from '/js/Service.js';
 import Observers from '/js/Observers.js';
 
-window.top.ServiceManager.register('knobs', {
+const knobs = {
   state: {},
   observers: new Observers(),
+  setWs(ws) {
+    ws.observe('open', () => {
+      ws.send({
+        type: "getKnobs",
+      });
+    });
+    ws.observe('knob', ({name, value}) => {
+      this.set(name, value);
+    });
+  },
   observe(key, win, cb, def) {
     this.observers.add(key, win, cb);
     cb(this.get(key, def));
@@ -18,6 +29,25 @@ window.top.ServiceManager.register('knobs', {
     this.state[key] = val;
     this.observers.fire(key, val, oldValue);
   },
-});
+}
+
+class KnobsClient {
+  constructor(context) {
+    this.context = context;
+  }
+  observe(key, ...args) {
+    knobs.observe(key, this.context, ...args);
+  }
+  get(...args) {
+    return knobs.get(...args);
+  }
+  set(...args) {
+    return knobs.set(...args);
+  }
+}
+
+Service.get('ws', ws => knobs.setWs(ws));
+
+Service.register('knobs', context => new KnobsClient(context));
 
 </script>

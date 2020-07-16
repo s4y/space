@@ -1,17 +1,74 @@
 <!DOCTYPE html>
-<script>
+<script type=module>
 
-window.top.ServiceManager.register('userMedia', {
-  mediaPromise: null,
+import Service from '/js/Service.js';
+import Observers from '/js/Observers.js';
+
+const userMedia = {
+  stream: null,
+  videoMuted: false,
+  audioMuted: false,
+  observers: new Observers(),
   get() {
     if (!this.mediaPromise) {
       this.mediaPromise = navigator.mediaDevices.getUserMedia({
         video: { width: 320, height: 240 },
         audio: true,
       });
+      this.mediaPromise.then(stream => {
+        this.stream = stream;
+        this.updateTracksEnabled();
+        this.observers.fire('stream', stream);
+      });
     } 
     return this.mediaPromise;
+  },
+  updateTracksEnabled() {
+    this.stream.getAudioTracks().forEach(track => track.enabled = !this.audioMuted);
+    this.stream.getVideoTracks().forEach(track => track.enabled = !this.videoMuted);
+  },
+  toggleVideoMuted() {
+    this.videoMuted = !this.videoMuted;
+    this.updateTracksEnabled();
+  },
+  toggleAudioMuted() {
+    this.audioMuted = !this.audioMuted;
+    this.updateTracksEnabled();
   }
-});
+}
+
+class UserMediaClient {
+  constructor(context) {
+    this.context = context;
+  }
+  observe(key, cb) {
+    if (key == 'videoMuted') {
+      cb(userMedia.videoMuted);
+    } else if (key == 'audioMuted') {
+      cb(userMedia.audioMuted);
+    } else if (key == 'stream') {
+      if (userMedia.stream)
+        cb(userMedia.stream);
+      else
+        userMedia.get();
+    }
+    return userMedia.observers.add(key, this.context, cb);
+  }
+  toggleVideoMuted() {
+    userMedia.videoMuted = !userMedia.videoMuted;
+    userMedia.updateTracksEnabled();
+    userMedia.observers.fire('videoMuted', userMedia.videoMuted);
+  }
+  toggleAudioMuted() {
+    userMedia.audioMuted = !userMedia.audioMuted;
+    userMedia.updateTracksEnabled();
+    userMedia.observers.fire('audioMuted', userMedia.audioMuted);
+  }
+  get() {
+    return userMedia.get();
+  }
+}
+
+Service.register('userMedia', window => new UserMediaClient(window));
 
 </script>

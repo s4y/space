@@ -50,7 +50,6 @@ let midiMap = {
 import PMIDIP30Controller from '/js/PMIDIP30Controller.js'
 
 const onMidiChange = (control, value) => {
-  console.log('midi', control, value);
   const name = midiMap[control];
   if (!name)
     return;

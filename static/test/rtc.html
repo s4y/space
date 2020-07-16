@@ -310,6 +310,13 @@ class RTCTestClient {
     const ws = new WebSocket(`${location.protocol == 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
     this.ws = ws;
     ws.onopen = e => {
+      this.ws.send(JSON.stringify({
+        type: "join",
+        body: {
+          position: [Math.random() * 100, Math.random() * 100],
+          look: [Math.random() * Math.PI, Math.random() * Math.PI],
+        },
+      }));
       this.initPeer();
     };
     ws.onclose = e => {

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<style>
+
+body {
+  font-family: system-ui;
+  font-size: 14px;
+}
+
+#videoMutedEl, #audioMutedEl {
+  color: red;
+}
+
+#preview {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 15vw;
+  object-fit: cover;
+  border-bottom-right-radius: 1em;
+  transform: scale(-1, 1);
+}
+
+</style>
+<div id=videoMutedEl style="display: none">Camera muted</div>
+<div id=audioMutedEl style="display: none">Microphone muted</div>
+<video muted id=preview></video>
+<script type=module>
+
+import Service from '/js/Service.js'
+
+Service.get('userMedia', userMedia => {
+  userMedia.observe('videoMuted', videoMuted => {
+    videoMutedEl.style.display = videoMuted ? '' : 'none';
+  });
+  userMedia.observe('audioMuted', audioMuted => {
+    audioMutedEl.style.display = audioMuted ? '' : 'none';
+  });
+  userMedia.observe('stream', stream => {
+    preview.srcObject = stream;
+    preview.play();
+  });
+});
+
+</script>

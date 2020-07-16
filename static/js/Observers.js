@@ -9,21 +9,16 @@ export default class Observers {
     if (!cb)
       throw new Error("wrong number of arguments passed to Observers.add");
     const observers = this.getObserverList(key);
+    observers.push(cb);
 
-    // sweep
-    for (let i = 0; i < observers.length; i++) {
-      const obs = observers[i];
-      if (obs.win.closed)
-        observers.splice(i--, 1);
-    }
-
-    observers.push({ win, cb });
+    const unloadListener = () => {
+      observers.splice(observers.indexOf(cb), 1);
+      win.removeEventListener('unload', unloadListener);
+    };
+    win.addEventListener('unload', unloadListener);
   }
   fire(key, ...args) {
-    for (const { win, cb } of this.getObserverList(key)) {
-      if (win.closed)
-        continue;
+    for (const cb of this.getObserverList(key))
       cb(...args);
-    }
   }
 }

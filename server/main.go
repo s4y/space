@@ -121,11 +121,16 @@ func (w *World) broadcast(m interface{}, skip uint32) {
 	}
 }
 
-func (w *World) SendTo(to uint32, m interface{}) {
-	w.mutex.Lock()
-	defer w.mutex.Unlock()
-	if g, ok := w.Guests[to]; ok {
-		g.Write(m)
+func (w *World) join(seq uint32, g *Guest) {
+	g.Write(MakeClientMessage("hello", struct {
+		Seq uint32 `json:"seq"`
+	}{seq}))
+
+	for k, v := range w.Guests {
+		if v == g {
+			continue
+		}
+		g.Write(MakeGuestUpdateMessage(k, *v))
 	}
 }
 
@@ -134,21 +139,19 @@ func (w *World) AddGuest(ctx context.Context, g *Guest) uint32 {
 	defer w.mutex.Unlock()
 	w.seq += 1
 	seq := w.seq
-
-	g.Write(MakeClientMessage("hello", struct {
-		Seq uint32 `json:"seq"`
-	}{seq}))
-
-	for k, v := range w.Guests {
-		g.Write(MakeGuestUpdateMessage(k, *v))
-	}
 	w.Guests[seq] = g
-	go w.UpdateGuest(seq)
+	w.join(seq, g)
 	go func() {
 		<-ctx.Done()
 		w.RemoveGuest(seq)
 	}()
 	return seq
+}
+
+func (w *World) Rejoin(seq uint32) {
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
+	w.join(seq, w.Guests[seq])
 }
 
 func (w *World) BroadcastFrom(seq uint32, message interface{}) {
@@ -261,46 +264,52 @@ func main() {
 			return
 		}
 
-		knobsMutex.RLock()
-		for name, value := range knobs {
-			conn.WriteJSON(MakeClientMessage("knob", Knob{name, value}))
-		}
-		knobsMutex.RUnlock()
-
 		guest := MakeGuest(ctx, conn)
-		// fmt.Println("GO ADD")
-		seq := world.AddGuest(ctx, guest)
-		// fmt.Println("GO UPDATE")
-		world.UpdateGuest(seq)
-		// fmt.Println("DONE UPDATE")
+		var msg ClientMessage
+		var seq uint32
 
 		rtcPeer := WebRTCPartyLinePeer{
-			UserInfo: seq,
 			SendToPeer: func(message interface{}) {
-				world.SendTo(seq, MakeClientMessage("rtc", struct {
+				guest.Write(MakeClientMessage("rtc", struct {
 					From    uint32      `json:"from"`
 					Message interface{} `json:"message"`
 				}{0, message}))
 			},
 			SendMidMapping: func(mapping map[uint32][]string) {
-				world.SendTo(seq, MakeClientMessage("midMapping", mapping))
+				guest.Write(MakeClientMessage("midMapping", mapping))
 			},
 		}
 
-		// fmt.Println("GO ADD PEER")
 		if err := partyLine.AddPeer(ctx, &rtcPeer); err != nil {
 			fmt.Println("err creating peerconnection ", seq, err)
 			return
 		}
-		// fmt.Println("DONE ADD PEER")
 
-		var msg ClientMessage
 		for {
 			if err = conn.ReadJSON(&msg); err != nil {
 				break
 			}
 			switch msg.Type {
+			case "join":
+				if seq != 0 {
+					world.Rejoin(seq)
+				} else {
+					var state GuestState
+					err := json.Unmarshal(msg.Body, &state)
+					if err != nil {
+						fmt.Println(err)
+						return
+					}
+					guest.GuestState = state
+					seq = world.AddGuest(ctx, guest)
+					rtcPeer.UserInfo = seq
+					world.UpdateGuest(seq)
+				}
 			case "state":
+				if seq == 0 {
+					fmt.Println("client tried to send state without joining first ", conn.RemoteAddr().String())
+					break
+				}
 				var state GuestState
 				err := json.Unmarshal(msg.Body, &state)
 				if err != nil {
@@ -309,6 +318,12 @@ func main() {
 				}
 				guest.GuestState = state
 				world.UpdateGuest(seq)
+			case "getKnobs":
+				knobsMutex.RLock()
+				for name, value := range knobs {
+					guest.Write(MakeClientMessage("knob", Knob{name, value}))
+				}
+				knobsMutex.RUnlock()
 			case "rtc":
 				var messageIn struct {
 					To      uint32          `json:"to"`
@@ -322,11 +337,6 @@ func main() {
 				if err := rtcPeer.HandleMessage(messageIn.Message); err != nil {
 					fmt.Println("malformed rtc message from", seq, string(messageIn.Message), err)
 				}
-				// messageOut := struct {
-				// 	From    uint32          `json:"from"`
-				// 	Message json.RawMessage `json:"message"`
-				// }{seq, messageIn.Message}
-				// world.SendTo(messageIn.To, MakeClientMessage("rtc", messageOut))
 			default:
 				fmt.Println("unknown message:", msg)
 			}

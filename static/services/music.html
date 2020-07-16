@@ -1,6 +1,7 @@
 <!DOCTYPE html>
-<script>
+<script type=module>
 
+import Service from '/js/Service.js';
 
 const music = {
   normalVolume: 0,
@@ -42,7 +43,7 @@ const music = {
   },
 };
 
-window.top.ServiceManager.want('knobs', window, knobs => {
+Service.get('knobs', knobs => {
   music.start();
   knobs.observe('music.volumeRampRate', window, v => {
     music.volumeRampRate = v * 20;
@@ -55,7 +56,6 @@ window.top.ServiceManager.want('knobs', window, knobs => {
   }, 0);
 });
 
-
-window.top.ServiceManager.register('music', music);
+Service.register('music', context => music);
 
 </script>

@@ -3,8 +3,10 @@
 <script src="/deps/three.min.js"></script>
 <div id=room></div>
 <canvas id=glRoom></canvas>
+<iframe id=overlay src=overlay.html></iframe>
 <script type=module>
 
+import Service from '/js/Service.js'
 import RTCPeer from '/js/RTCPeer.js'
 
 const hqs = location.hash
@@ -93,6 +95,7 @@ const buildGlRoom = (canvas, config) => {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(60);
   const listener = new THREE.AudioListener();
+  gestureWrangler.playAudioContext(listener.context);
   camera.add(listener);
   const renderer = new THREE.WebGLRenderer({
     canvas,
@@ -158,11 +161,6 @@ const buildGlRoom = (canvas, config) => {
       balloon.position.x = i * 15 - 150;
       scene.add(balloon);
     }
-  }
-
-  const livingRoom = new THREE.Group();
-  {
-    let couch
   }
 
   const floor = new THREE.Mesh(
@@ -273,14 +271,14 @@ const buildGlRoom = (canvas, config) => {
     scene.add(group);
 
     const videoEl = document.createElement('video');
-    videoEl.autoplay = true;
     videoEl.muted = true;
 
     const posSound = new THREE.PositionalAudio(listener);
     posSound.setRefDistance(posAudioParams.refDistance);
     posSound.setRolloffFactor(posAudioParams.rolloffFactor);
     posSound.setDistanceModel('exponential');
-    // posSound.setDirectionalCone(180, 230, 0.1);
+    posSound.setDirectionalCone(120, 230, 0.2);
+    posSound.rotation.y = Math.PI;
     videoPanel.add(posSound);
 
 
@@ -290,12 +288,25 @@ const buildGlRoom = (canvas, config) => {
     videoTexture.format = THREE.RGBFormat;
     videoTexture.offset.set(-0.25, 0);
     videoEl.addEventListener('playing', () => {
-      console.log('go go gadget playing', videoEl.videoWidth, videoEl.videoHeight);
       videoPanel.material.uniforms.map.value = videoTexture;
       videoPanel.material.uniforms.aspect.value = videoEl.videoWidth / videoEl.videoHeight;
     });
+    videoEl.addEventListener('paused', () => {
+      videoPanel.material.uniforms.map.value = null;
+    });
 
     let videoTrack, audioTrack;
+
+    const updateTracks = () => {
+        const tracks = [videoTrack, audioTrack].filter(t => t);
+        const stream = tracks.length ? new MediaStream(tracks) : null;
+        videoEl.srcObject = stream;
+        gestureWrangler.playVideo(videoEl);
+        if (audioTrack)
+          posSound.setMediaStreamSource(stream);
+        else if (posSound.source)
+          posSound.disconnect();
+    };
 
     const ret = (guests[id] = {
       group, head, body, posSound,
@@ -303,26 +314,13 @@ const buildGlRoom = (canvas, config) => {
         if (newVideoTrack == videoTrack)
           return;
         videoTrack = newVideoTrack;
-        videoEl.srcObject = videoTrack ? new MediaStream([videoTrack]) : null;
-        videoEl.load();
-        videoEl.play();
+        updateTracks();
       },
       set audioTrack(newAudioTrack) {
         if (newAudioTrack == audioTrack)
           return;
         audioTrack = newAudioTrack;
-        if (audioTrack) {
-          // TODO: Leak!?!
-          const audioEl = document.createElement('audio');
-          audioEl.autoplay = true;
-          // audioEl.muted = true;
-          audioEl.srcObject = new MediaStream([audioTrack]);
-          audioEl.load();
-          // posSound.setMediaStreamSource(audioEl.captureStream()); 
-          console.log(audioEl);
-          window.top.ael = audioEl;
-        } else
-          posSound.disconnect();
+        updateTracks();
       },
     });
 
@@ -432,13 +430,13 @@ const buildGlRoom = (canvas, config) => {
     }
   };
 
-  window.top.ServiceManager.want('knobs', window, knobs => {
-    knobs.observe('posAudio.refDistance', window, refDistance => {
+  Service.get('knobs', knobs => {
+    knobs.observe('posAudio.refDistance', refDistance => {
       posAudioParams.refDistance = refDistance;
       for (const k in guests)
         guests[k].posSound.setRefDistance(refDistance * 50);
     }, 1);
-    knobs.observe('posAudio.rolloffFactor', window, rolloffFactor => {
+    knobs.observe('posAudio.rolloffFactor', rolloffFactor => {
       posAudioParams.rolloffFactor = rolloffFactor;
       for (const k in guests)
         guests[k].posSound.setRolloffFactor(rolloffFactor * 10);
@@ -488,22 +486,9 @@ const buildRoom = (el, config) => {
     }
   };
 
-  if (sessionStorage.playerPosition) {
-    try {
-      ({ look, position } = JSON.parse(sessionStorage.playerPosition));
-    } catch (e) {
-      console.warn("Failed to restore player position:", e);
-      sessionStorage.playerPosition = null;
-    }
-  }
-
   let dirty = false;
   window.top.addEventListener('keydown', handleKey(true));
   window.top.addEventListener('keyup', handleKey(false));
-
-  const persist = () => {
-    sessionStorage.playerPosition = JSON.stringify({ look, position, });
-  }
 
   const moveListener = e => {
     if (e.movementX != null) {
@@ -517,7 +502,6 @@ const buildRoom = (el, config) => {
     look[1] = Math.min(Math.PI / 2, look[1]);
     look[1] = Math.max(-Math.PI / 2, look[1]);
     dirty = true;
-    persist();
   }
 
   const topDoc = window.top.document;
@@ -585,7 +569,6 @@ const buildRoom = (el, config) => {
       ret.onchange && ret.onchange();
     }
     animationFrame = requestAnimationFrame(draw);
-    persist();
   };
 
   animationFrame = requestAnimationFrame(draw);
@@ -594,6 +577,7 @@ const buildRoom = (el, config) => {
 }
 
 let config;
+let gestureWrangler;
 let timeOffset;
 let room;
 let whoami;
@@ -605,18 +589,18 @@ let rtcPeer;
 
 const setRemoteRoom = (config, remoteRoom) => {
 
-  remoteRoom.observe('update', window, (id, state) => {
+  remoteRoom.observe('update', (id, state) => {
     if (state)
       room.updateGuest(id, state);
     else
       room.removeGuest(id);
   });
 
-  remoteRoom.observe('updateMedia', window, (id, guest) => {
+  remoteRoom.observe('updateMedia', (id, guest) => {
     room.updateMedia(id, guest);
   });
 
-  remoteRoom.observe('clear', window, () => {
+  remoteRoom.observe('clear', () => {
     room.clearGuests();
   });
 
@@ -704,13 +688,49 @@ const start = () => {
   //   audio: true,
   // });
 
-  fetch('/config.json')
+  Service.get('music', music => {
+    musicAnalyser = music.analyser;
+  });
+
+  Service.get('knobs', knobs => {
+    knobs.observe('world.musicReactivity', v => {
+      musicReactivity = v;
+    }, 1);
+    knobs.observe('world.motion', v => {
+      motion = v;
+    }, 1);
+  });
+
+  Service.get('gestureWrangler', gw => {
+    gestureWrangler = gw;
+  });
+
+  let userMedia;
+  Service.get('userMedia', um => {
+    userMedia = um;
+  });
+
+  window.top.addEventListener('keydown', e => {
+    switch (e.keyCode) {
+      case 77: // m
+        userMedia.toggleAudioMuted();
+        break;
+      case 86: // v
+        userMedia.toggleVideoMuted();
+        break;
+      default:
+        return; // without preventing default
+    }
+    e.preventDefault();
+  });
+
+  return fetch('/config.json')
     .then(r => r.json())
     .then(config => {
       timeOffset = new Date() - config.zeroTime
       room = buildRoom(document.getElementById('room'));
 
-      window.top.ServiceManager.want('room', window, room => {
+      Service.get('room', room => {
         setRemoteRoom(config, room);
       });
       // return mediaPromise;
@@ -720,19 +740,6 @@ const start = () => {
     //   if (rtcPeer)
     //     rtcPeer.setMediaStream(stream);
     // });
-
-    window.top.ServiceManager.want('music', window, music => {
-      musicAnalyser = music.analyser;
-    });
-
-    window.top.ServiceManager.want('knobs', window, knobs => {
-      knobs.observe('world.musicReactivity', window, v => {
-        musicReactivity = v;
-      }, 1);
-      knobs.observe('world.motion', window, v => {
-        motion = v;
-      }, 1);
-    });
 };
 
 if (window.top.waitForGesture === true) {

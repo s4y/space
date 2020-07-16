@@ -283,7 +283,7 @@ func (p *WebRTCPartyLinePeer) HandleMessage(message json.RawMessage) error {
 		return err
 	}
 	if len(messagePieces) != 2 {
-		return errors.New(fmt.Sprint("malformed rtc message: ", messagePieces))
+		return errors.New(fmt.Sprint("malformed rtc message of length ", len(messagePieces), ": ", messagePieces))
 	}
 	var messageType string
 	if err := json.Unmarshal(messagePieces[0], &messageType); err != nil {

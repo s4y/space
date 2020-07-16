@@ -25,43 +25,35 @@ body > iframe {
   display: none;
 }
 
+#needGesture {
+  display: none;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1;
+}
+
 </style>
 <body>
 <div id=serviceFrames></div>
+<div id=needGesture style="display: none"><button type=button>Click to unmute</button></div>
 <script type=module>
 
-import Observers from '/js/Observers.js'; 
+import Service from '/js/Service.js';
 
-window.ServiceManager = {
-  registrations: {},
-  observers: new Observers(),
-  register(name, service) {
-    if (this.registrations[name])
-      console.log('ℹ️ Service reloaded:', name);
-    this.registrations[name] = service;
-    this.observers.fire(name, service);
-  },
-  want(name, win, cb) {
-    this.observers.add(name, win, cb);
-    const reg = this.registrations[name];
-    if (reg)
-      cb(reg);
-  },
-};
+Service.setHost(serviceFrames);
 
-const goServices = () => {
-  for (const service of [
-    'knobs',
-    'music',
-    'room',
-    'userMedia',
-    'ws',
-  ]) {
-    const frame = document.createElement('iframe');
-    frame.src = `/services/${service}.html`;
-    serviceFrames.appendChild(frame);
-  }
-};
+let gestureWrangler;
+Service.get('gestureWrangler', w => {
+  gestureWrangler = w;
+  w.setPromptEl(needGesture, needGesture.querySelector('button'));
+});
 
 const prepSplash = () => {
   const doc = splashFrame.contentDocument;
@@ -70,7 +62,7 @@ const prepSplash = () => {
   const goLink = doc.createElement('a');
   goLink.style.fontSize = '1.2em';
   goLink.style.fontWeight = 'bold';
-  goLink.href = 'http://zoom.us/j/2753428392?pwd=LN9hwDlqwj2j82kjdslhdqlwknaksjr8';
+  goLink.href = '';
   goLink.textContent = 'Click here to join.';
   connDetails.innerHTML = '';
   connDetails.appendChild(goLink);
@@ -87,39 +79,35 @@ const prepSplash = () => {
     e.preventDefault();
     sessionStorage.inParty = true;
 
-    partyFrame.style.visibility = '';
-    splashFrame.style.pointerEvents = 'none';
-    splashFrame.blur();
-
-
-    splashFrame.style.transition = 'background 4s ease-out, backdrop-filter 4s ease-in-out';
-    doc.body.style.transition = 'transform 4s linear';
-    doc.body.style.transformOrigin = 'center -50%';
-    doc.body.style.transform = 'perspective(100vw) translateZ(-100vw) rotateX(90deg)';
-
-    setTimeout(() => {
-      splashFrame.style.background = 'transparent';
-      splashFrame.style.backdropFilter = '';
-    }, 2000);
-
-    setTimeout(() => {
-      splashFrame.parentNode.removeChild(splashFrame);
-    }, 7000);
-
     window.waitForGesture = false;
-    goServices();
-    partyFrame.contentWindow.startOnGesture();
+    partyFrame.contentWindow.startOnGesture().then(() => {
+      partyFrame.style.visibility = '';
+      splashFrame.style.pointerEvents = 'none';
+      splashFrame.blur();
 
-    // Quick hax
-    if (ServiceManager.registrations.music)
-      ServiceManager.registrations.music.resume(); 
+      splashFrame.style.transition = 'background 4s ease-out, backdrop-filter 4s ease-in-out';
+      doc.body.style.transition = 'transform 4s linear';
+      doc.body.style.transformOrigin = 'center -50%';
+      doc.body.style.transform = 'perspective(100vw) translateZ(-100vw) rotateX(90deg)';
+
+      setTimeout(() => {
+        splashFrame.style.background = 'transparent';
+        splashFrame.style.backdropFilter = '';
+      }, 2000);
+
+      setTimeout(() => {
+        splashFrame.parentNode.removeChild(splashFrame);
+      }, 7000);
+    });
+
+    gestureWrangler.onGesture();
   }); 
 };
 
 const partyFrame = document.createElement('iframe');
 partyFrame.src = 'party/';
 
-if (false && sessionStorage.inParty) {
+if (sessionStorage.inParty) {
   window.waitForGesture = false;
   document.body.appendChild(partyFrame);
 } else {
