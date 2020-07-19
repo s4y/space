@@ -9,19 +9,18 @@ const userMedia = {
   videoMuted: false,
   audioMuted: false,
   observers: new Observers(),
-  get() {
-    if (!this.mediaPromise) {
-      this.mediaPromise = navigator.mediaDevices.getUserMedia({
-        video: { width: 320, height: 240 },
-        audio: true,
-      });
-      this.mediaPromise.then(stream => {
-        this.stream = stream;
-        this.updateTracksEnabled();
-        this.observers.fire('stream', stream);
-      });
-    } 
-    return this.mediaPromise;
+  start() {
+    if (this.mediaPromise)
+      return;
+    this.mediaPromise = navigator.mediaDevices.getUserMedia({
+      video: { width: 320, height: 240 },
+      audio: true,
+    });
+    this.mediaPromise.then(stream => {
+      this.stream = stream;
+      this.updateTracksEnabled();
+      this.observers.fire('stream', stream);
+    });
   },
   updateTracksEnabled() {
     this.stream.getAudioTracks().forEach(track => track.enabled = !this.audioMuted);
@@ -41,6 +40,9 @@ class UserMediaClient {
   constructor(context) {
     this.context = context;
   }
+  start() {
+    userMedia.start();
+  }
   observe(key, cb) {
     if (key == 'videoMuted') {
       cb(userMedia.videoMuted);
@@ -49,8 +51,6 @@ class UserMediaClient {
     } else if (key == 'stream') {
       if (userMedia.stream)
         cb(userMedia.stream);
-      else
-        userMedia.get();
     }
     return userMedia.observers.add(key, this.context, cb);
   }
@@ -63,9 +63,6 @@ class UserMediaClient {
     userMedia.audioMuted = !userMedia.audioMuted;
     userMedia.updateTracksEnabled();
     userMedia.observers.fire('audioMuted', userMedia.audioMuted);
-  }
-  get() {
-    return userMedia.get();
   }
 }
 

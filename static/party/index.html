@@ -708,6 +708,7 @@ const start = () => {
   let userMedia;
   Service.get('userMedia', um => {
     userMedia = um;
+    userMedia.start();
   });
 
   window.top.addEventListener('keydown', e => {
