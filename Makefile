@@ -9,6 +9,7 @@ run: deps
 	go get -u \
 		github.com/gorilla/websocket \
 		github.com/s4y/reserve \
+		github.com/pion/webrtc \
 
 	touch .deps.stamp
 
