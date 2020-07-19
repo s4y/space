@@ -18,6 +18,9 @@ body > iframe {
   left: 0;
   width: 100%;
   height: 100%;
+}
+
+#partyFrame {
   background: black;
 }
 
@@ -105,6 +108,7 @@ const prepSplash = () => {
 };
 
 const partyFrame = document.createElement('iframe');
+partyFrame.id = 'partyFrame';
 partyFrame.src = 'party/';
 
 if (sessionStorage.inParty) {
