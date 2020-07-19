@@ -45,13 +45,11 @@ const music = {
 
 Service.get('knobs', knobs => {
   music.start();
-  knobs.observe('music.volumeRampRate', window, v => {
+  knobs.observe('music.volumeRampRate', v => {
     music.volumeRampRate = v * 20;
-    console.log('volume ramp rate changed to (seconds)', music.volumeRampRate);
   }, 1);
-  knobs.observe('music.volume', window, v => {
+  knobs.observe('music.volume', v => {
     music.normalVolume = v;
-    console.log('music volume changed to', v);
     music.updateVolume();
   }, 0);
 });
