@@ -313,7 +313,7 @@ class RTCTestClient {
       this.ws.send(JSON.stringify({
         type: "join",
         body: {
-          position: [Math.random() * 100, Math.random() * 100],
+          position: [Math.random() * 100, Math.random() * 100, 0],
           look: [Math.random() * Math.PI, Math.random() * Math.PI],
         },
       }));

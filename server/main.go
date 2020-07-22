@@ -27,9 +27,10 @@ func MakeClientMessage(t string, message interface{}) ClientMessage {
 }
 
 type Vec2 [2]float64
+type Vec3 [3]float64
 
 type GuestState struct {
-	Position Vec2 `json:"position"`
+	Position Vec3 `json:"position"`
 	Look     Vec2 `json:"look"`
 }
 

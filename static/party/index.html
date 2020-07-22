@@ -94,6 +94,7 @@ const skyMaterial = new THREE.ShaderMaterial( {
 const buildGlRoom = (canvas, config) => {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(60);
+  camera.rotation.order = 'YXZ';
   const listener = new THREE.AudioListener();
   gestureWrangler.playAudioContext(listener.context);
   camera.add(listener);
@@ -105,9 +106,6 @@ const buildGlRoom = (canvas, config) => {
   });
   renderer.physicallyCorrectLights = true;
   // renderer.localClippingEnabled = true;
-
-  camera.position.y = 6;
-  camera.rotation.order = 'YXZ';
 
   const hemiLight = new THREE.HemisphereLight( 0x7FBBFF, 0x34002D, 1 );
   scene.add(hemiLight);
@@ -338,6 +336,7 @@ const buildGlRoom = (canvas, config) => {
 
     guest.group.position.x = state.position[0];
     guest.group.position.z = -state.position[1];
+    guest.group.position.y = state.position[2];
   }
 
   const updateMedia = (id, { videoTrack, audioTrack }) => {
@@ -396,6 +395,7 @@ const buildGlRoom = (canvas, config) => {
   const draw = ({ now, look, position }) => {
     camera.position.x = position[0];// - Math.sin(look[0]) * 8;
     camera.position.z = -position[1];// + Math.cos(look[0]) * 8;
+    camera.position.y = 6 + position[2];
     camera.rotation.y = -look[0];
     camera.rotation.x = -look[1];// - 0.2;
 
@@ -451,32 +451,37 @@ const buildGlRoom = (canvas, config) => {
 
 const buildRoom = (el, config) => {
   const direction = {
-    87: [0, 1],
-    83: [0, -1],
-    65: [-1, 0],
-    68: [1, 0],
+    87: [0, 1, 0],
+    83: [0, -1, 0],
+    65: [-1, 0, 0],
+    68: [1, 0, 0],
+    32: [0, 0, 1],
   };
   let look = [0, 0];
-  let position = [Math.random() * 20 - 10, -90 + Math.random() * 10 - 5];
+  let position = [Math.random() * 20 - 10, -90 + Math.random() * 10 - 5, 0];
   const keysDown = {};
-  const velocity = [0, 0];
-  const keyAcceleration = [0, 0];
+  const velocity = [0, 0, 0];
+  const keyAcceleration = [0, 0, 0];
   const updateAcceleration = () => {
     let x = 0;
     let z = 0;
+    let y = 0;
     for (const k in keysDown) {
       if (!keysDown[k])
         continue;
       x += direction[k][0];
       z += direction[k][1];
+      y += direction[k][2];
     }
     const accel = [
       x * Math.cos(look[0]) + z * Math.sin(look[0]),
       z * Math.cos(-look[0]) + x * Math.sin(-look[0]),
+      y,
     ];
     const mag = Math.sqrt(Math.pow(accel[0], 2) + Math.pow(accel[1], 2));
     keyAcceleration[0] = accel[0] / mag || 0;
     keyAcceleration[1] = accel[1] / mag || 0;
+    keyAcceleration[2] = accel[2];
   };
   let handleKey = down => e => {
     if (e.keyCode in direction) {
@@ -561,10 +566,16 @@ const buildRoom = (el, config) => {
     const now = rawNow + timeOffset;
     velocity[0] = applyAcceleration(velocity[0], keyAcceleration[0] * 0.05);
     velocity[1] = applyAcceleration(velocity[1], keyAcceleration[1] * 0.05);
+    velocity[2] = Math.max(-2, Math.min(0.9, velocity[2] + keyAcceleration[2] * 0.05 - 0.01));
+    if (position[2] <= 0) {
+      velocity[2] = Math.max(velocity[2], 0);
+      position[2] = 0;
+    }
     position[0] += velocity[0];
     position[1] += velocity[1];
+    position[2] += velocity[2];
     glRoom.draw({ now, position, look });
-    if (ret.onchange && (dirty || velocity[0] || velocity[1])) {
+    if (ret.onchange && (dirty || velocity[0] || velocity[1] || velocity[2])) {
       dirty = false;
       ret.onchange && ret.onchange();
     }

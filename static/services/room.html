@@ -14,6 +14,8 @@ class Room {
     if (sessionStorage.playerState) {
       try {
         this.state = JSON.parse(sessionStorage.playerState);
+        if (this.state.position.length < 3)
+          this.state.position.push(0);
       } catch (e) {
         console.warn("Failed to restore player position:", e);
         sessionStorage.playerState = null;
@@ -21,7 +23,7 @@ class Room {
     }
     if (!this.state) {
       this.state = {
-        position: [Math.random() * 20 - 10, -90 + Math.random() * 10 - 5],
+        position: [Math.random() * 20 - 10, -90 + Math.random() * 10 - 5, 0],
         look: [0, 0],
       };
     }
