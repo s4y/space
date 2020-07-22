@@ -5,35 +5,100 @@ import Service from '/js/Service.js';
 import Observers from '/js/Observers.js';
 import RTCPeer from '/js/RTCPeer.js'
 
+class Player {
+  constructor(onchange, state = { position: [], look: [], }) {
+    this.onchange = onchange;
+    this.position = [Math.random() * 20 - 10, -90 + Math.random() * 10 - 5, 0];
+    for (let i = 0; i < this.position.length; i++)
+      this.position[i] = state.position[i] || this.position[i];
+    this.look = [Math.random() * 20 - 10, -90 + Math.random() * 10 - 5, 0];
+    for (let i = 0; i < this.look.length; i++)
+      this.look[i] = state.look[i] || this.look[i];
+    this.velocity = [0, 0, 0];
+  }
+  toJSON() {
+    return {
+      position: this.position,
+      look: this.look,
+    };
+  }
+  get look() {
+    return this._look;
+  }
+  set look(look) {
+    this._look = look;
+    this.onchange();
+  }
+  get position() {
+    return this._position;
+  }
+  set position(position) {
+    this._position = position;
+    this.onchange();
+  }
+  applyAcceleration(acceleration) {
+    const apply = (v, a, min = -0.5, max = 0.5) => {
+      const vOut = Math.max(min, Math.min(max, v + a));
+      return Math.abs(vOut) > 0.001 ? vOut : 0;
+    };
+    const { velocity } = this;
+    velocity[0] = apply(velocity[0], acceleration[0] * 0.05);
+    velocity[1] = apply(velocity[1], acceleration[1] * 0.05);
+    velocity[2] = apply(velocity[2], acceleration[2] * 0.05, -2);
+  }
+  stepPhysics() {
+    const { position, velocity } = this;
+    if (position[2] <= 0) {
+      velocity[0] *= 0.9;
+      velocity[1] *= 0.9;
+      velocity[2] = Math.max(velocity[2], 0);
+      position[2] = 0;
+    } else {
+      velocity[2] -= 0.01;
+    }
+    position[0] += velocity[0];
+    position[1] += velocity[1];
+    position[2] += velocity[2];
+    this.onchange();
+  }
+}
+
 class Room {
   constructor() {
     this.observers = new Observers();
     this.mediaStream = new MediaStream();
     this.guests = {};
 
+    const onchange = () => {
+      this.setNeedsUpdate();
+    };
+
     if (sessionStorage.playerState) {
       try {
-        this.state = JSON.parse(sessionStorage.playerState);
-        if (this.state.position.length < 3)
-          this.state.position.push(0);
+        this.player = new Player(onchange, JSON.parse(sessionStorage.playerState));
       } catch (e) {
         console.warn("Failed to restore player position:", e);
         sessionStorage.playerState = null;
       }
     }
-    if (!this.state) {
-      this.state = {
-        position: [Math.random() * 20 - 10, -90 + Math.random() * 10 - 5, 0],
-        look: [0, 0],
-      };
-    }
+    if (!this.player)
+      this.player = new Player(onchange);
+  }
+  setNeedsUpdate() {
+    if (this.needsUpdate)
+      return;
+    this.needsUpdate = true;
+    setTimeout(() => {
+      this.needsUpdate = false;
+      this.sendAndSaveStateIfChanged();
+    }, 0);
   }
   setWs(ws) {
     this.ws = ws;
     ws.observe('open', () => {
       ws.send({
         type: "join",
-        body: this.state,
+        body: this.player,
       });
     });
     ws.observe('close', () => {
@@ -103,14 +168,16 @@ class Room {
     this.whoami = whoami;
     this.observers.fire('whoami', whoami);
   }
-  setState(state) {
-    sessionStorage.playerState = JSON.stringify(state);
-    this.state = state;
-    this.observers.fire('state', state);
-    if (this.ws) {
+  sendAndSaveStateIfChanged() {
+    const oldStateJSON = sessionStorage.playerState;
+    const newStateJSON = JSON.stringify(this.player);
+    if (oldStateJSON == newStateJSON)
+      return;
+    sessionStorage.playerState = newStateJSON;
+    if (this.ws && this.ws.open) {
       this.ws.send({
         type: "state",
-        body: this.state,
+        body: this.player,
       });
     }
   }
@@ -177,14 +244,11 @@ class RoomClient {
   observe(key, cb) {
     return room.observers.add(key, this.context, cb);
   }
-  get state() {
-    return room.state;
+  get player() {
+    return room.player;
   }
   get guests() {
     return room.guests;
-  }
-  setState(state) {
-    room.setState(state);
   }
 };
 

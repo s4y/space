@@ -8,6 +8,7 @@
 
 import Service from '/js/Service.js'
 import RTCPeer from '/js/RTCPeer.js'
+import PlayerControls from '/js/PlayerControls.js'
 
 const hqs = location.hash
   .substr(1)
@@ -16,80 +17,92 @@ const hqs = location.hash
   .map(c => c.split('=').map(decodeURIComponent))
   .reduce((params, [k, v]) => (params[k] = v, params), {});
 
-const skyMaterial = new THREE.ShaderMaterial( {
-  side: THREE.BackSide,
-  uniforms: {
-    t: { value: 0 },
-  },
-  vertexShader: `
-    varying vec2 p;
+const createSky = () => {
+  const skyMaterial = new THREE.ShaderMaterial( {
+    side: THREE.BackSide,
+    uniforms: {
+      t: { value: 0 },
+    },
+    vertexShader: `
+      varying vec2 p;
 
-    void main() {
-      p = uv*2.-1.;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
-    }
-  `,
+      void main() {
+        p = uv*2.-1.;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+      }
+    `,
 
-  fragmentShader: `
-    #include <common>
+    fragmentShader: `
+      #include <common>
 
-    // https://thebookofshaders.com/10/
-    float random( vec2 p )
-    {
-      vec2 K1 = vec2(
-      23.14069263277926, // e^pi (Gelfond's constant)
-      2.665144142690225 // 2^sqrt(2) (Gelfond–Schneider constant)
-    );
-      return fract( cos( dot(p,K1) ) * 12345.6789 );
-    }
+      // https://thebookofshaders.com/10/
+      float random( vec2 p )
+      {
+        vec2 K1 = vec2(
+        23.14069263277926, // e^pi (Gelfond's constant)
+        2.665144142690225 // 2^sqrt(2) (Gelfond–Schneider constant)
+      );
+        return fract( cos( dot(p,K1) ) * 12345.6789 );
+      }
 
-    varying vec2 p;
-    uniform float t;
-    void main() {
-      vec2 pp = p;
-      // pp.x /= sin(pp.y);
-      // pp += (look * vec3(1, 1, 1) * 2. - 0.5).xy;
-      // vec2 pp = vec2(atan(p.y, p.x), distance(p, vec2(0.0)));
-      // p.x = atan(p.y, p.x);
-      // p.y = op.y;
-      // p.y = length(op);
+      varying vec2 p;
+      uniform float t;
+      void main() {
+        vec2 pp = p;
+        // pp.x /= sin(pp.y);
+        // pp += (look * vec3(1, 1, 1) * 2. - 0.5).xy;
+        // vec2 pp = vec2(atan(p.y, p.x), distance(p, vec2(0.0)));
+        // p.x = atan(p.y, p.x);
+        // p.y = op.y;
+        // p.y = length(op);
 
-      // float lat = Ip.y/2.+.5) * PI;
-      // float lon = Ip.x/2.+.5) * PI * 2.;
-      // vec3 p3 = vec3(sin(lat)*cos(lon), sin(lat)*sin(lon), cos(lat));
-      
+        // float lat = Ip.y/2.+.5) * PI;
+        // float lon = Ip.x/2.+.5) * PI * 2.;
+        // vec3 p3 = vec3(sin(lat)*cos(lon), sin(lat)*sin(lon), cos(lat));
+        
 
-      // float lon = (p.x/2.+.5)*2.*PI;
-      // float lat = (p.y/2.+.5)*2.*PI;
-      // vec3 p3 = vec3(cos(lon)*cos(lat), sin(lon)*cos(lat), sin(lat));
+        // float lon = (p.x/2.+.5)*2.*PI;
+        // float lat = (p.y/2.+.5)*2.*PI;
+        // vec3 p3 = vec3(cos(lon)*cos(lat), sin(lon)*cos(lat), sin(lat));
 
-      vec2 ll = vec2(
-        (p.x / 2. + 0.5) * PI,
-        (p.y / 2. + 0.5) * 2. * PI
-        // cos((p.x/2.+.5)*PI*2.)*(p.y/2.+.5),
-        // sin((p.x/2.+.5)*PI*2.)*(p.y/2.+.5)
-        );
+        vec2 ll = vec2(
+          (p.x / 2. + 0.5) * PI,
+          (p.y / 2. + 0.5) * 2. * PI
+          // cos((p.x/2.+.5)*PI*2.)*(p.y/2.+.5),
+          // sin((p.x/2.+.5)*PI*2.)*(p.y/2.+.5)
+          );
 
-      vec3 p3 = vec3(sin(ll.x) * cos(ll.y), sin(ll.x) * sin(ll.y), cos(ll.x));;
-      // p3 *= 2.;
+        vec3 p3 = vec3(sin(ll.x) * cos(ll.y), sin(ll.x) * sin(ll.y), cos(ll.x));;
+        // p3 *= 2.;
 
-      p3.z += t / 100.;
+        p3.z += t / 100.;
 
-      pp = p3.yz*2.-1.;
-      // pp.x /= 4.;
-      // pp = mod(pp, 0.5);
+        pp = p3.yz*2.-1.;
+        // pp.x /= 4.;
+        // pp = mod(pp, 0.5);
 
-      vec2 nearP = pp - mod(pp, 0.1);
-      gl_FragColor = vec4(clamp(step(random(nearP), 0.5) * (1. - distance(pp, nearP + 0.05) * 200.), 0., 1.));
-      gl_FragColor += max(gl_FragColor, clamp(1. - ll.y - 0.5, 0., 1.));
-      // gl_FragColor = vec4(abs(p3), 1.);
-      // gl_FragColor = vec4(p3.yz, 0., 1.);
-      // gl_FragColor = vec4(pp, 0., 1.);
-      // gl_FragColor = vec4(pp, 0., 1.);
-    }
-  `,
-});
+        vec2 nearP = pp - mod(pp, 0.1);
+        gl_FragColor = vec4(clamp(step(random(nearP), 0.5) * (1. - distance(pp, nearP + 0.05) * 200.), 0., 1.));
+        gl_FragColor += max(gl_FragColor, clamp(1. - ll.y - 0.5, 0., 1.));
+        // gl_FragColor = vec4(abs(p3), 1.);
+        // gl_FragColor = vec4(p3.yz, 0., 1.);
+        // gl_FragColor = vec4(pp, 0., 1.);
+        // gl_FragColor = vec4(pp, 0., 1.);
+      }
+    `,
+  });
 
+  const sky = new THREE.Mesh(
+    new THREE.SphereBufferGeometry(1000, 32, 32, 0, 2 * Math.PI, 0, 0.5 * Math.PI),
+    skyMaterial);
+  sky.onBeforeRender = () => {
+    sky.material.uniforms.t.value = performance.now() / 1000;
+  };
+
+  return {
+    obj: sky,
+  };
+};
 
 const buildGlRoom = (canvas, config) => {
   const scene = new THREE.Scene();
@@ -105,7 +118,6 @@ const buildGlRoom = (canvas, config) => {
     powerPreference: 'high-performance',
   });
   renderer.physicallyCorrectLights = true;
-  // renderer.localClippingEnabled = true;
 
   const hemiLight = new THREE.HemisphereLight( 0x7FBBFF, 0x34002D, 1 );
   scene.add(hemiLight);
@@ -127,13 +139,8 @@ const buildGlRoom = (canvas, config) => {
   const guests = {};
   let mediaStream = null;
 
-  const sky = new THREE.Mesh(
-    new THREE.SphereBufferGeometry(1000, 32, 32, 0, 2 * Math.PI, 0, 0.5 * Math.PI),
-    skyMaterial);
-  sky.onBeforeRender = () => {
-    sky.material.uniforms.t.value = performance.now() / 1000;
-  };
-  scene.add(sky);
+  const sky = createSky();
+  scene.add(sky.obj);
 
   const updateBalloons = [];
   const balloonGeometry = new THREE.IcosahedronBufferGeometry(5, 0);
@@ -285,12 +292,13 @@ const buildGlRoom = (canvas, config) => {
     videoTexture.magFilter = THREE.LinearFilter;
     videoTexture.format = THREE.RGBFormat;
     videoTexture.offset.set(-0.25, 0);
+    videoPanel.material.uniforms.map.value = videoTexture;
     videoEl.addEventListener('playing', () => {
-      videoPanel.material.uniforms.map.value = videoTexture;
       videoPanel.material.uniforms.aspect.value = videoEl.videoWidth / videoEl.videoHeight;
+      head.add(videoPanel);
     });
     videoEl.addEventListener('paused', () => {
-      videoPanel.material.uniforms.map.value = null;
+      head.remove(videoPanel);
     });
 
     let videoTrack, audioTrack;
@@ -340,9 +348,12 @@ const buildGlRoom = (canvas, config) => {
   }
 
   const updateMedia = (id, { videoTrack, audioTrack }) => {
+    // console.log('updating media for guest', id, videoTrack, audioTrack);
     const guest = guests[id];
-    if (!guest)
+    if (!guest) {
       console.log('updating media for unknown guest', id);
+      return;
+    }
     guest.videoTrack = videoTrack;
     guest.audioTrack = audioTrack;
   };
@@ -352,26 +363,8 @@ const buildGlRoom = (canvas, config) => {
     if (!guest)
       return;
     scene.remove(guest.group);
-    // guest.peer.close();
     delete guests[id];
   };
-
-  const handleRTC = (from, message) => {
-    // if (from == 0)
-    //   return peer && peer.receiveFromPeer(message);
-    const guest = guests[from];
-    if (!guest)
-      return;
-      guest.peer.receiveFromPeer(message);
-  }
-
-  const setMediaStream = stream => {
-    mediaStream = stream;
-    // if (peer)
-    //   peer.setMediaStream(stream);
-    // for (const k in guests)
-    //   guests[k].peer.setMediaStream(stream);
-  }
 
   const cubez = [];
   for (let i = 0; i < 10; i++) {
@@ -393,14 +386,14 @@ const buildGlRoom = (canvas, config) => {
   const byteFreqData = new Uint8Array(1024);
 
   const draw = ({ now, look, position }) => {
-    camera.position.x = position[0];// - Math.sin(look[0]) * 8;
-    camera.position.z = -position[1];// + Math.cos(look[0]) * 8;
+    camera.position.x = position[0];
+    camera.position.z = -position[1];
     camera.position.y = 6 + position[2];
     camera.rotation.y = -look[0];
-    camera.rotation.x = -look[1];// - 0.2;
+    camera.rotation.x = -look[1];
 
-    sky.position.x = floor.position.x = camera.position.x;
-    sky.position.z = floor.position.z = camera.position.z;
+    sky.obj.position.x = floor.position.x = camera.position.x;
+    sky.obj.position.z = floor.position.z = camera.position.z;
     floor.rotation.y = camera.rotation.y;
 
     if (musicAnalyser)
@@ -414,8 +407,6 @@ const buildGlRoom = (canvas, config) => {
       cube.rotation.z = Math.PI / 4;
       cube.rotation.x = Math.atan(1/Math.SQRT2) + flap;
       cube.rotation.y = now / 10000 * (i+1);
-      // const scale = 1 + Math.pow(byteFreqData[i*10]/255, 4) * 2.; 
-      // cube.scale.set(scale, scale, scale);
     }
 
     updateBalloons.forEach(f => f(now, byteFreqData));
@@ -445,260 +436,80 @@ const buildGlRoom = (canvas, config) => {
 
   resize();
   return {
-    draw, updateGuest, removeGuest, updateMedia, clearGuests, handleRTC, setMediaStream
+    draw, updateGuest, removeGuest, updateMedia, clearGuests
   };
 }
 
 const buildRoom = (el, config) => {
-  const direction = {
-    87: [0, 1, 0],
-    83: [0, -1, 0],
-    65: [-1, 0, 0],
-    68: [1, 0, 0],
-    32: [0, 0, 1],
-  };
-  let look = [0, 0];
-  let position = [Math.random() * 20 - 10, -90 + Math.random() * 10 - 5, 0];
-  const keysDown = {};
-  const velocity = [0, 0, 0];
-  const keyAcceleration = [0, 0, 0];
-  const updateAcceleration = () => {
-    let x = 0;
-    let z = 0;
-    let y = 0;
-    for (const k in keysDown) {
-      if (!keysDown[k])
-        continue;
-      x += direction[k][0];
-      z += direction[k][1];
-      y += direction[k][2];
-    }
-    const accel = [
-      x * Math.cos(look[0]) + z * Math.sin(look[0]),
-      z * Math.cos(-look[0]) + x * Math.sin(-look[0]),
-      y,
-    ];
-    const mag = Math.sqrt(Math.pow(accel[0], 2) + Math.pow(accel[1], 2));
-    keyAcceleration[0] = accel[0] / mag || 0;
-    keyAcceleration[1] = accel[1] / mag || 0;
-    keyAcceleration[2] = accel[2];
-  };
-  let handleKey = down => e => {
-    if (e.keyCode in direction) {
-      keysDown[e.keyCode] = down;
-      updateAcceleration();
-      e.preventDefault();
-    }
-  };
-
-  let dirty = false;
-  window.top.addEventListener('keydown', handleKey(true));
-  window.top.addEventListener('keyup', handleKey(false));
-
-  const moveListener = e => {
-    if (e.movementX != null) {
-      look[0] += (e.movementX / document.body.clientWidth * 2) * 0.5;
-      look[1] += (e.movementY / document.body.clientWidth * 2) * 0.5;
-    } else {
-      look[0] = (e.clientX / document.body.clientWidth * 2 - 1) * 0.5;
-      look[1] = (e.clientY / document.body.clientHeight * 2 - 1) * 0.5;
-    }
-    look[0] = look[0] % (Math.PI * 2);
-    look[1] = Math.min(Math.PI / 2, look[1]);
-    look[1] = Math.max(-Math.PI / 2, look[1]);
-    dirty = true;
-  }
-
-  const topDoc = window.top.document;
-  let isMoving = false;
-  let mouseDownTime;
-  const cancel = () => {
-    if (!isMoving)
-      return;
-    topDoc.body.removeEventListener('mousemove', moveListener);
-    if (topDoc.pointerLockElement)
-      window.top.topDoc.exitPointerLock();
-  }
-  window.addEventListener('mousedown', e => {
-    e.preventDefault();
-    topDoc.body.addEventListener('mousemove', moveListener);
-    topDoc.body.requestPointerLock();
-    isMoving = true;
-    mouseDownTime = performance.now();
-  });
-  window.addEventListener('mouseup', e => {
-    if (performance.now() - mouseDownTime > 250)
-      cancel();
-  });
-  topDoc.addEventListener('pointerlockchange', e => {
-    if (!topDoc.pointerLockElement)
-      cancel();
-  });
-  if (topDoc.pointerLockElement)
-    topDoc.body.addEventListener('mousemove', moveListener);
-
-  const applyAcceleration = (v, a) => {
-    const vOut = Math.max(-1, Math.min(1, 0.8 * v + a));
-    return Math.abs(vOut) > 0.001 ? vOut : 0;
-  };
-
+  let player;
+  const controls = new PlayerControls();
   const glRoom = buildGlRoom(document.getElementById('glRoom'), {
     roomEl: el,
     ...config
   });
 
   const ret = {
-    get position() { return position; },
-    set position(p) { position = p; },
-    get look() { return look; },
-    set look(l) { look = l; },
-    onchange: null,
-    updateGuest: glRoom.updateGuest,
-    updateMedia: glRoom.updateMedia,
-    removeGuest: glRoom.removeGuest,
-    clearGuests: glRoom.clearGuests,
-    handleRTC: glRoom.handleRTC,
-    setMediaStream: glRoom.setMediaStream,
   };
 
   let animationFrame;
+  let lastLook, lastPosition;
+  const equalVectors = (a, b) => {
+    if (!(a && b))
+      return false;
+    if (a.length != b.length)
+      return false;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] != b[i])
+        return false;
+    }
+    return true;
+  };
   const draw = rawNow => {
     const now = rawNow + timeOffset;
-    velocity[0] = applyAcceleration(velocity[0], keyAcceleration[0] * 0.05);
-    velocity[1] = applyAcceleration(velocity[1], keyAcceleration[1] * 0.05);
-    velocity[2] = Math.max(-2, Math.min(0.9, velocity[2] + keyAcceleration[2] * 0.05 - 0.01));
-    if (position[2] <= 0) {
-      velocity[2] = Math.max(velocity[2], 0);
-      position[2] = 0;
-    }
-    position[0] += velocity[0];
-    position[1] += velocity[1];
-    position[2] += velocity[2];
+    player.applyAcceleration(controls.acceleration);
+    player.stepPhysics();
+    const { position, look } = player;
     glRoom.draw({ now, position, look });
-    if (ret.onchange && (dirty || velocity[0] || velocity[1] || velocity[2])) {
-      dirty = false;
-      ret.onchange && ret.onchange();
-    }
     animationFrame = requestAnimationFrame(draw);
   };
 
-  animationFrame = requestAnimationFrame(draw);
+  Service.get('room', room => {
+    player = controls.player = room.player;
+
+    room.observe('update', (id, state) => {
+      if (state)
+        glRoom.updateGuest(id, state);
+      else
+        glRoom.removeGuest(id);
+    });
+
+    room.observe('updateMedia', (id, guest) => {
+      glRoom.updateMedia(id, guest);
+    });
+
+    room.observe('clear', () => {
+      glRoom.clearGuests();
+    });
+
+    glRoom.clearGuests();
+    for (const k in room.guests)
+      glRoom.updateGuest(k, room.guests[k]);
+
+    if (!animationFrame)
+      animationFrame = requestAnimationFrame(draw);
+
+  });
 
   return ret;
 }
 
-let config;
 let gestureWrangler;
 let timeOffset;
-let room;
-let whoami;
 let musicAnalyser;
 let musicReactivity = 0;
 let motion = 0;
-let mediaStream;
-let rtcPeer;
-
-const setRemoteRoom = (config, remoteRoom) => {
-
-  remoteRoom.observe('update', (id, state) => {
-    if (state)
-      room.updateGuest(id, state);
-    else
-      room.removeGuest(id);
-  });
-
-  remoteRoom.observe('updateMedia', (id, guest) => {
-    room.updateMedia(id, guest);
-  });
-
-  remoteRoom.observe('clear', () => {
-    room.clearGuests();
-  });
-
-  room.onchange = () => {
-    const { position, look } = room;
-    remoteRoom.setState({ position, look });
-  }
-
-  room.position = remoteRoom.state.position;
-  room.look = remoteRoom.state.look;
-
-  room.clearGuests();
-  for (const k in remoteRoom.guests)
-    room.updateGuest(k, remoteRoom.guests[k]);
-
-  /*
-  const initRTC = () => {
-    if (rtcPeer)
-      rtcPeer.close();
-    window.rtcPeer = rtcPeer = new RTCPeer({
-      tweakSDP: sdp => sdp
-        // TODO make tuneable
-        .replace(/(m=video.*\r\n)/g, `$1b=AS:100\r\n`)
-        .replace('useinbandfec=1', 'useinbandfec=1; stereo=1; maxaveragebitrate=40')
-        ,
-      config: config.rtcConfiguration,
-      sendToPeer: message => {
-        // console.log('send ', ...JSON.parse(JSON.stringify(message)));
-        ws.send({
-          type: "rtc",
-          body: { to: 0, message },
-        });
-      },
-        // getOrCreateVideoEl().srcObject = stream;
-        // videoTexture = new THREE.VideoTexture(videoEl);
-        // videoTexture.minFilter = THREE.LinearFilter;
-        // videoTexture.magFilter = THREE.LinearFilter;
-        // videoTexture.format = THREE.RGBFormat;
-        // cube.geometry = new THREE.BoxGeometry(3 * (4/3), 3, 3);
-        // cube.material = new THREE.MeshBasicMaterial( { color: 0xffffff, map: videoTexture, side: THREE.DoubleSide  } );
-      // },
-    });
-    if (mediaStream)
-      rtcPeer.setMediaStream(mediaStream);
-
-  };
-
-  room.sendToPeer = (to, message) => {
-    ws.send({
-      type: "rtc",
-      body: { to, message },
-    });
-  };
-
-  console.log('hithithit');
-  ws.observe('message', window, message => {
-    const {type, body} = message;
-    switch (type) {
-      case "hello":
-        whoami = body;
-        break;
-      case "guestUpdate":
-        room.updateGuest(body.id, body.state);
-        break;
-      case "midMapping":
-        room.updateMidMapping(body);
-        break;
-      case "guestLeaving":
-        room.removeGuest(body.id);
-        break;
-      case "rtc":
-        rtcPeer.receiveFromPeer(body.message);
-        // room.handleRTC(body.from, body.message);
-        break;
-      default:
-        console.log("unknown message type from server:", message);
-    }
-  });
-  */
-};
 
 const start = () => {
-  // const mediaPromise = navigator.mediaDevices.getUserMedia({
-  //   video: { width: 320, height: 240 },
-  //   audio: true,
-  // });
-
   Service.get('music', music => {
     musicAnalyser = music.analyser;
   });
@@ -740,18 +551,8 @@ const start = () => {
     .then(r => r.json())
     .then(config => {
       timeOffset = new Date() - config.zeroTime
-      room = buildRoom(document.getElementById('room'));
-
-      Service.get('room', room => {
-        setRemoteRoom(config, room);
-      });
-      // return mediaPromise;
+      const room = buildRoom(document.getElementById('room'), config);
     })
-    // .then(stream => {
-    //   mediaStream = stream;
-    //   if (rtcPeer)
-    //     rtcPeer.setMediaStream(stream);
-    // });
 };
 
 if (window.top.waitForGesture === true) {

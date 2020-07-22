@@ -49,6 +49,7 @@ class WsClient {
   constructor(context) {
     this.context = context;
   }
+  get open() { return ws.open; }
   observe(key, cb) {
     if (key == 'open' && ws.open)
       cb();
