@@ -1,4 +1,4 @@
-import Observers from '/js/Observers.js'; 
+import Observers from './Observers.js';
 
 const findIn = window => {
   if (window._serviceManager)
@@ -30,7 +30,7 @@ const serviceManager = findIn(window) || {
       return;
     const frame = document.createElement('iframe');
     this.serviceFrames[name] = frame;
-    frame.src = `/services/${name}.html`;
+    frame.src = `/space/services/${name}.html`;
     this.hostElement.appendChild(frame);
   },
   get(context, name, cb) {
