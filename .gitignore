@@ -1,3 +1,4 @@
 /static/deps
+/static-default/deps
 /server.o
 /.deps.stamp
