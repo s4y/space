@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -179,8 +180,8 @@ func (w *World) RemoveGuest(seq uint32) {
 	delete(w.Guests, seq)
 }
 
-func readConfig() {
-	configFile, err := os.Open("static/config.json")
+func readConfig(staticDir string) {
+	configFile, err := os.Open(filepath.Join(staticDir, "config.json"))
 	if err != nil {
 		panic(err)
 	}
@@ -203,11 +204,10 @@ type Knob struct {
 var knobsMutex sync.RWMutex
 var knobs map[string]interface{} = make(map[string]interface{})
 
-func startManagementServer() {
+func startManagementServer(managementAddr string) {
 	mux := http.NewServeMux()
 	mux.Handle("/", reserve.FileServer("static-management"))
 
-	managementAddr := "127.0.0.1:8034"
 	fmt.Printf("Management UI (only) at http://%s/\n", managementAddr)
 	server := http.Server{Addr: managementAddr, Handler: mux}
 
@@ -244,12 +244,14 @@ func startManagementServer() {
 }
 
 func main() {
-	readConfig()
-	partyLine = NewWebRTCPartyLine(config.RTCConfiguration)
-
+	staticDir := flag.String("static", "./static-default", "Directory for static content")
 	httpAddr := flag.String("http", "127.0.0.1:8031", "Listening address")
+	managementAddr := flag.String("management", "127.0.0.1:8034", "Listening address for admin pages")
 	flag.Parse()
 	fmt.Printf("http://%s/\n", *httpAddr)
+
+	readConfig(*staticDir)
+	partyLine = NewWebRTCPartyLine(config.RTCConfiguration)
 
 	ln, err := net.Listen("tcp", *httpAddr)
 	if err != nil {
@@ -281,11 +283,6 @@ func main() {
 			},
 		}
 
-		if err := partyLine.AddPeer(ctx, &rtcPeer); err != nil {
-			fmt.Println("err creating peerconnection ", seq, err)
-			return
-		}
-
 		for {
 			if err = conn.ReadJSON(&msg); err != nil {
 				break
@@ -305,6 +302,12 @@ func main() {
 					seq = world.AddGuest(ctx, guest)
 					rtcPeer.UserInfo = seq
 					world.UpdateGuest(seq)
+
+					if err := partyLine.AddPeer(ctx, &rtcPeer); err != nil {
+						fmt.Println("err creating peerconnection ", seq, err)
+						return
+					}
+
 				}
 			case "state":
 				if seq == 0 {
@@ -346,8 +349,9 @@ func main() {
 	})
 	http.Handle("/media/music", makeMusicHandler())
 	// http.Handle("/astream/", http.FileServer(http.Dir(".")))
-	http.Handle("/", reserve.FileServer("static"))
+	http.Handle("/space/", reserve.FileServer("static"))
+	http.Handle("/", reserve.FileServer(http.Dir(*staticDir)))
 
-	go startManagementServer()
+	go startManagementServer(*managementAddr)
 	log.Fatal(http.Serve(ln, nil))
 }
