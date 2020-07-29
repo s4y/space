@@ -26,7 +26,7 @@ body {
 <video muted id=preview></video>
 <script type=module>
 
-import Service from '/js/Service.js'
+import Service from '/space/js/Service.js'
 
 Service.get('userMedia', userMedia => {
   userMedia.observe('videoMuted', videoMuted => {
