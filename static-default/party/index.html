@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <link rel=stylesheet href="/style.css">
 <script src="/deps/three.min.js"></script>
+<script src="https://cdn.rawgit.com/mrdoob/three.js/master/examples/js/loaders/GLTFLoader.js"></script>
+
 <div id=room></div>
 <canvas id=glRoom></canvas>
 <iframe id=overlay src=overlay.html></iframe>
@@ -59,7 +61,7 @@ const createSky = () => {
         // float lat = Ip.y/2.+.5) * PI;
         // float lon = Ip.x/2.+.5) * PI * 2.;
         // vec3 p3 = vec3(sin(lat)*cos(lon), sin(lat)*sin(lon), cos(lat));
-        
+
 
         // float lon = (p.x/2.+.5)*2.*PI;
         // float lat = (p.y/2.+.5)*2.*PI;
@@ -178,6 +180,40 @@ const buildGlRoom = (canvas, config) => {
   floor.rotation.x = -Math.PI / 2;
   floor.rotation.order = 'YXZ';
   scene.add(floor);
+
+  //GLTF LOADER
+  let mixer;
+  let loader = new THREE.GLTFLoader();
+  loader.load('/models/Duck/Duck.gltf', function(gltf){
+    const duck = gltf.scene.children[0];
+    duck.scale.set(0.2,0.2,0.2);
+    duck.position.y = 1.5;
+
+    duck.rotation.y = -Math.PI;
+    scene.add(gltf.scene);
+    // animate();
+
+    mixer = new THREE.AnimationMixer( duck );
+    gltf.animations.forEach(( clip ) => {
+      mixer.clipAction(clip).play();
+    });
+
+  });
+
+  /*let mixer;
+  let loader = new THREE.GLTFLoader();
+  loader.load( '/models/Duck/Duck.gltf', ( gltf ) => {
+    const model = gltf.scene;
+    model.scale.set(5.0,5.0,5.0);
+    scene.add(model);
+    /*
+    mixer = new THREE.AnimationMixer( model );
+    gltf.animations.forEach(( clip ) => {
+      mixer.clipAction(clip).play();
+    });
+
+  });
+  */
 
   const resize = () => {
     renderer.setSize(
@@ -508,6 +544,7 @@ let timeOffset;
 let musicAnalyser;
 let musicReactivity = 0;
 let motion = 0;
+
 
 const start = () => {
   Service.get('music', music => {
