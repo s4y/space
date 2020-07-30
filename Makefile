@@ -5,7 +5,7 @@ deps: .deps.stamp
 run: deps
 	go run ./server
 
-.deps.stamp: static/deps/three.min.js Makefile
+.deps.stamp: static-default/deps/three.min.js Makefile
 	go get -u \
 		github.com/gorilla/websocket \
 		github.com/s4y/reserve \
