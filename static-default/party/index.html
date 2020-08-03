@@ -2,6 +2,7 @@
 <link rel=stylesheet href="/style.css">
 <script src="/deps/three.min.js"></script>
 <script src="https://cdn.rawgit.com/mrdoob/three.js/master/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.rawgit.com/mrdoob/three.js/master/examples/js/utils/BufferGeometryUtils.js"></script>
 
 <div id=room></div>
 <canvas id=glRoom></canvas>
@@ -11,7 +12,6 @@
 import Service from '/space/js/Service.js'
 import RTCPeer from '/space/js/RTCPeer.js'
 import PlayerControls from '/space/js/PlayerControls.js'
-import * as constellationData from '/models/Constellation/data/constellationtest.js' 
 
 const hqs = location.hash
   .substr(1)
@@ -481,20 +481,10 @@ var myManualStars = [
 
 //  ----------------------------------------------- Star Cluster From File
 
-const updateStarOpacity = [];
-
-// import star coordinates from file
-var myStars = constellationData.constellationData;
-
-// The star coordinates are three nested lists deep - this is a condition of the dataset
-for (let i = 0; i < myStars.length; i++) {
+for (let i = 0; i < 8; i++) {
   // console.log(myStars[i]);
-  for (let j = 0; j < myStars[i]['stars'].length; j ++ ){
-    // console.log(myStars[i]['stars'][j]);
-    for (let k = 0; k < myStars[i]['stars'][j].length; k++){
-      // console.log(myStars[i]['stars'][j][k]);
-
-      // Randomize star size
+  const starGeometries = [];
+  for (let j = 0; j < 100; j++){
       function generateRandomNumberSize() {
         var min = 5.0,
             max = 20.0,
@@ -514,44 +504,22 @@ for (let i = 0; i < myStars.length; i++) {
       };
       var opacityRandom = generateRandomNumberOpacity();
 
-      // Cluster density controls
-      var xclusterScale = 20;
-      var yclusterScale = 1.7539;
-      var zclusterScale = 20;
-      
-      // Cluster origin placement
-      var zOffset = 0.0;
-      var xOffset = 0.0;
-      var yOffset = 300.0;
-      
-    
-      // controls the overall scale of the star cluster
-      var starScale = 0.1;
-
-      const starMaterial = new THREE.MeshBasicMaterial( {color: 0xffff00, transparent: true, opacity: opacityRandom} );
       // const starMaterial = new THREE.MeshBasicMaterial( {color: 0xffff00, transparent: true} );
-      const starGeometry = new THREE.SphereGeometry(geometryRandom);
-      
-      // Trying to get this to work but to no avail... wanting to get them to flicker or to pulse opacity
-      updateStarOpacity.push((now, byteFreqData) => {
-        starMaterial.opacity = opacityRandom + motion * (Math.sin(now / 1000 + i / 2. + j * 3.) * 0.5);
-      });
-      
-      var starSphere = new THREE.Mesh( starGeometry, starMaterial );
-      
-      starSphere.position.x = (parseFloat(myStars[i]['stars'][j][k]['x']) + xOffset) * xclusterScale;
-      starSphere.position.y = (parseFloat(myStars[i]['stars'][j][k]['y']) + yOffset) * yclusterScale;
-      starSphere.position.z = (parseFloat(myStars[i]['stars'][j][k]['z']) + zOffset) * zclusterScale;
-      
-      starSphere.name = myStars[i]['stars'][j][k]["name"];
-      
-      starSphere.scale.set(starScale, starScale, starScale);
-      
-      scene.add( starSphere );
+      const starGeometry = new THREE.SphereBufferGeometry(geometryRandom * 0.1);
+      const angle = Math.random() * Math.PI * 2;
+      const distanceFromCenter = Math.random() * 2000;
+      starGeometry.translate(Math.cos(angle) * distanceFromCenter, Math.random() * 17 + 500, Math.sin(angle) * distanceFromCenter);
+      starGeometries.push(starGeometry);
     };
-  };
   
-
+    const starMaterial = new THREE.MeshBasicMaterial( {color: 0xffff00, transparent: true, opacity: opacityRandom} );
+    const starGroup = new THREE.Mesh(THREE.BufferGeometryUtils.mergeBufferGeometries(starGeometries), starMaterial);
+    
+    starGroup.onBeforeRender = () => {
+      starMaterial.opacity = opacityRandom + motion * (Math.sin(performance.now() / 1000 + i / 2.) * 0.5);
+    };
+    
+    scene.add(starGroup);
 };
 
 //  ----------------------------------------------- End Star Cluster From File
@@ -560,7 +528,7 @@ for (let i = 0; i < myStars.length; i++) {
 //   console.log(constellationData[i])
 // }
 
-console.log(constellationData.constellationData[0]['stars'][1][0]['name']);
+// console.log(constellationData.constellationData[0]['stars'][1][0]['name']);
 // console.log(constellationData[10]);
 
 // starSphere.position.x = 50;
@@ -820,7 +788,6 @@ console.log(constellationData.constellationData[0]['stars'][1][0]['name']);
     }
 
     updateBalloons.forEach(f => f(now, byteFreqData));
-    updateStarOpacity.forEach(f => f(now, byteFreqData));
 
     renderer.setClearColor(new THREE.Color().setHSL(0.5, 0.7, 0.01), 1);
     renderer.render(scene, camera);
