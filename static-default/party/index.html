@@ -498,7 +498,7 @@ for (let i = 0; i < myStars.length; i++) {
       function generateRandomNumberSize() {
         var min = 5.0,
             max = 20.0,
-            highlightedNumber = (Math.random() * (max - min) + min).toFixed(3); // reduces the decimal places for quicker load
+            highlightedNumber = (Math.random() * (max - min) + min);
 
           return(highlightedNumber);
       };
@@ -508,7 +508,7 @@ for (let i = 0; i < myStars.length; i++) {
       function generateRandomNumberOpacity() {
         var min = 0.25,
             max = 1.0,
-            highlightedNumber = (Math.random() * (max - min) + min).toFixed(3); // reduces the decimal places for quicker load
+            highlightedNumber = (Math.random() * (max - min) + min);
 
           return(highlightedNumber);
       };
@@ -530,12 +530,12 @@ for (let i = 0; i < myStars.length; i++) {
 
       const starMaterial = new THREE.MeshBasicMaterial( {color: 0xffff00, transparent: true, opacity: opacityRandom} );
       // const starMaterial = new THREE.MeshBasicMaterial( {color: 0xffff00, transparent: true} );
-      const starGeometry = new THREE.SphereGeometry( geometryRandom, geometryRandom, geometryRandom);
+      const starGeometry = new THREE.SphereGeometry(geometryRandom);
       
       // Trying to get this to work but to no avail... wanting to get them to flicker or to pulse opacity
-      // updateStarOpacity.push((now, byteFreqData) => {
-      //   starMaterial.opacity = 40 + motion * (Math.sin(now / 10000 + i / 2. + j * 3.) * 10.);
-      // });
+      updateStarOpacity.push((now, byteFreqData) => {
+        starMaterial.opacity = opacityRandom + motion * (Math.sin(now / 1000 + i / 2. + j * 3.) * 0.5);
+      });
       
       var starSphere = new THREE.Mesh( starGeometry, starMaterial );
       
@@ -820,6 +820,7 @@ console.log(constellationData.constellationData[0]['stars'][1][0]['name']);
     }
 
     updateBalloons.forEach(f => f(now, byteFreqData));
+    updateStarOpacity.forEach(f => f(now, byteFreqData));
 
     renderer.setClearColor(new THREE.Color().setHSL(0.5, 0.7, 0.01), 1);
     renderer.render(scene, camera);
