@@ -11,6 +11,7 @@
 import Service from '/space/js/Service.js'
 import RTCPeer from '/space/js/RTCPeer.js'
 import PlayerControls from '/space/js/PlayerControls.js'
+import * as constellationData from '/models/Constellation/data/constellationtest.js' 
 
 const hqs = location.hash
   .substr(1)
@@ -30,7 +31,8 @@ const createSky = () => {
 
       void main() {
         p = uv*2.-1.;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+        gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1. );
+        // var color = new THREE.Color("rgb(255, 255, 255)");
       }
     `,
 
@@ -44,7 +46,7 @@ const createSky = () => {
         23.14069263277926, // e^pi (Gelfond's constant)
         2.665144142690225 // 2^sqrt(2) (Gelfond–Schneider constant)
       );
-        return fract( cos( dot(p,K1) ) * 12345.6789 );
+        return fract( cos( dot(p,K1) ) * PI );
       }
 
       varying vec2 p;
@@ -69,7 +71,7 @@ const createSky = () => {
 
         vec2 ll = vec2(
           (p.x / 2. + 0.5) * PI,
-          (p.y / 2. + 0.5) * 2. * PI
+          (p.y / 2. + 0.5) * 1. * PI
           // cos((p.x/2.+.5)*PI*2.)*(p.y/2.+.5),
           // sin((p.x/2.+.5)*PI*2.)*(p.y/2.+.5)
           );
@@ -77,15 +79,15 @@ const createSky = () => {
         vec3 p3 = vec3(sin(ll.x) * cos(ll.y), sin(ll.x) * sin(ll.y), cos(ll.x));;
         // p3 *= 2.;
 
-        p3.z += t / 100.;
+        p3.z += t / 2000.;
 
-        pp = p3.yz*2.-1.;
+        pp = p3.yz*10.-1.;
         // pp.x /= 4.;
         // pp = mod(pp, 0.5);
 
         vec2 nearP = pp - mod(pp, 0.1);
         gl_FragColor = vec4(clamp(step(random(nearP), 0.5) * (1. - distance(pp, nearP + 0.05) * 200.), 0., 1.));
-        gl_FragColor += max(gl_FragColor, clamp(1. - ll.y - 0.5, 0., 1.));
+        gl_FragColor += max(gl_FragColor, clamp(1.0 - ll.y - 0.5, 0., 1.));
         // gl_FragColor = vec4(abs(p3), 1.);
         // gl_FragColor = vec4(p3.yz, 0., 1.);
         // gl_FragColor = vec4(pp, 0., 1.);
@@ -95,7 +97,7 @@ const createSky = () => {
   });
 
   const sky = new THREE.Mesh(
-    new THREE.SphereBufferGeometry(1000, 32, 32, 0, 2 * Math.PI, 0, 0.5 * Math.PI),
+    new THREE.SphereBufferGeometry(5000, 16, 32, 100, 2 * Math.PI, 0, 0.5 * Math.PI),
     skyMaterial);
   sky.onBeforeRender = () => {
     sky.material.uniforms.t.value = performance.now() / 1000;
@@ -105,6 +107,28 @@ const createSky = () => {
     obj: sky,
   };
 };
+
+const myVideo = function ( id, x, y, z, ry ) {
+
+        var div = document.createElement( 'div' );
+        div.style.width = '480px';
+        div.style.height = '360px';
+        div.style.backgroundColor = '#000';
+
+        var iframe = document.createElement( 'iframe' );
+        iframe.style.width = '480px';
+        iframe.style.height = '360px';
+        iframe.style.border = '0px';
+        iframe.src = [ 'https://www.youtube.com/embed/', id, '?rel=0' ].join( '' );
+        div.appendChild( iframe );
+
+        var object = new CSS3DObject( div );
+        object.position.set( x, y, z );
+        object.rotation.y = ry;
+
+        return object;
+
+      };
 
 const buildGlRoom = (canvas, config) => {
   const scene = new THREE.Scene();
@@ -130,6 +154,7 @@ const buildGlRoom = (canvas, config) => {
     { p: [0, 1, 10], power: 1000 },
     { p: [0, 1, -10], power: 1000 },
     { p: [0, 7, 0], power: 2000 },
+    { p: [200, 175, -500], power: 100000 },
   ]) {
     const light = new THREE.PointLight(0xffffff, 100);
     light.power = props.power;
@@ -162,7 +187,9 @@ const buildGlRoom = (canvas, config) => {
         balloon.add(rowLight);
       updateBalloons.push((now, byteFreqData) => {
         balloon.position.y = 40 + motion * (Math.sin(now / 10000 + i / 2. + j * 3.) * 10.);
-        balloon.material.emissive.setHSL((i + j) / 40 + now / 16000, 0.5, + (byteFreqData[i*10+j]*musicReactivity) / 255 * 0.8);
+        balloon.material.emissive.setHSL((i + j) / 40 + now / 16000, 0.5, + .1 / 255 * 0.8);
+
+        // balloon.material.emissive.setHSL((i + j) / 40 + now / 16000, 0.5, + (byteFreqData[i*10+j]*musicReactivity) / 255 * 0.8);
       });
       balloon.position.z = j * 15 - 150;
       balloon.position.x = i * 15 - 150;
@@ -184,21 +211,368 @@ const buildGlRoom = (canvas, config) => {
   //GLTF LOADER
   let mixer;
   let loader = new THREE.GLTFLoader();
+  
   loader.load('/models/Duck/Duck.gltf', function(gltf){
-    const duck = gltf.scene.children[0];
-    duck.scale.set(0.2,0.2,0.2);
-    duck.position.y = 1.5;
 
-    duck.rotation.y = -Math.PI;
-    scene.add(gltf.scene);
-    // animate();
+  // loader.load('/models/Constellation/boxanimate.gltf', function(gltf){
+  // loader.load('/models/Constellation/dipper.gltf', function(gltf){
+  // loader.load('/models/Constellation/newduck.gltf', function(gltf){
+  // loader.load('/models/Constellation/monkey.gltf', function(gltf){
 
-    mixer = new THREE.AnimationMixer( duck );
-    gltf.animations.forEach(( clip ) => {
-      mixer.clipAction(clip).play();
+
+    // const duck = gltf.scene.children[0];
+    // const duck = gltf.scene
+    const duck = gltf
+    // for (let i = 0; i < 10; i++) {
+    //   console.log( gltf.scene.children[i]);
+    // };
+    console.log ( duck )
+    console.log ( duck.scene.children[0] )
+    console.log ( duck.animations)
+
+    
+    
+
+    // function ( xhr ) {
+    //   console.log( ( xhr.loaded / xhr.total * 100 ) + '% loaded' );
+    // };
+
+    // function ( error ) {
+    //   console.log ( 'An error happened ');
+    // };
+    // mixer = new THREE.AnimationMixer(duck.animations);
+    // var action = mixer.clipAction( duck.animations[0]);
+    // action.play()
+    scene.add(duck.scene);
+    // duck.animations.forEach((clip) => {mixer.clipAction(clip).play(); })
+    // const clip = THREE.AnimationClip.findByName( animations, 'CubeAction')
+    // mixer = new THREE.AnimationMixer( duck );
+    // gltf.animations.forEach(( clip ) => {
+    //   mixer.clipAction(clip).play(); 
+    // });
+
+  // const updateDuck = [];
+  // duck.position.y = 1.5 + motion * (Math.sin(now / 200000 + i / 2. + j * 3.) * 10.);
+
+  // updateDuck.push((now, byteFreqData) => {
+  //   duck.position.y = 40 + motion * (Math.sin(now / 10000 + i / 2. + j * 3.) * 10.);
+  // });
+
+    duck.scene.rotation.y = -Math.PI;
+    duck.scene.scale.set(50.7,50.7,50.7);
+    duck.scene.position.x = 200;
+    duck.scene.position.z = -500;
+    duck.scene.position.y = 1.5;
+
     });
 
+
+  // duck.position.y = 1.5
+  // duck.position.y.needsUpdate = true;
+  // duck.position.x = 100
+  // duck.position.z = -120
+  
+
+
+  // const mixer;
+  // const clock = new THREE.Clock();
+  // let dipperLoader = new THREE.GLTFLoader();
+
+  // dipperLoader.load('/models/Constellation/dipper.gltf', function(gltf){
+  //   scene.add( gltf.scene );
+  //   // const dipper = gltf.scene.children[0];
+  //   // scene.add( dipper );
+
+  //   // dipper.position.x = 10;
+  //   // dipper.position.y = 10;
+  //   // dipper.position.z = 10;
+  //   // dipper.scale.set(0.7,0.7,0.7);
+  // } );
+
+  // const duck = gltf.scene.children[0];
+
+
+  
+  var geometry = new THREE.PlaneGeometry( 16, 9, 32 );
+  var material = new THREE.MeshBasicMaterial( {color: 0xffff00, side: THREE.DoubleSide} );
+
+
+  const updatePlane = [];
+  var plane = new THREE.Mesh( geometry, material );
+
+  plane.position.x = 50;
+  plane.position.z = -40;
+  plane.position.y = 10.5
+
+  updatePlane.push((now, byteFreqData) => {
+    plane.position.y = 40 + motion * (Math.sin(now / 10000 + i / 2. + j * 3.) * 10.);
   });
+  
+  // scene.add( plane );
+
+// ----------------------------------------------- ADD Stars Manually
+
+// var myStars = [
+//   {
+//       "x": "-9.2585",
+//       "y": "23.2275",
+//       "z": "-16.1410",
+//       "hip": "677,",
+//       "name": "Alpha And"
+//   },
+//   {
+//       "x": "-69.3824",
+//       "y": "123.4199",
+//       "z": "-78.8781",
+//       "hip": "2868,",
+//       "name": "Pi And"
+//   },
+//   {
+//       "x": "-21.3276",
+//       "y": "31.5326",
+//       "z": "-17.2370",
+//       "hip": "4436,",
+//       "name": "Mu And"
+//   },
+//   {
+//       "x": "-33.8738",
+//       "y": "39.2233",
+//       "z": "-12.4704",
+//       "hip": "7607,",
+//       "name": "51 And"
+//   }
+// ];
+
+// const starGeometry = new THREE.SphereGeometry( 5, 5, 5);
+// const starMaterial = new THREE.MeshBasicMaterial( {color: 0xffff00});
+
+// for (let i = 0; i < myStars.length; i++) {
+//   var zOffset = 100.0;
+//   var xOffset = 100.0;
+//   var yOffset = 100.0;
+
+//   var starSphere = new THREE.Mesh( starGeometry, starMaterial );
+//   starSphere.position.x = parseFloat(myStars[i]['x']) + xOffset;
+//   starSphere.position.y = parseFloat(myStars[i]['y']) + yOffset;
+//   starSphere.position.z = parseFloat(myStars[i]['z']) + zOffset;
+//   // starSphere.position.x = 50 + i * 10;
+//   // starSphere.position.y = 50 + i * 10;
+//   // starSphere.position.z = 50 + i * 10;
+//   starSphere.name = myStars[i]["name"];
+//   console.log(starSphere);
+//   console.log(starSphere.name);
+//   console.log(starSphere.position.y);
+
+//   starSphere.scale.set(0.1, 0.1, 0.1);
+//   scene.add( starSphere );
+  
+
+// };
+
+//  ----------------------------------------------- End Add Stars Manually
+
+
+//  ----------------------------------------------- Add Individual Systems
+
+var myManualStars = [
+  {
+    "name": "My Constellation 1",
+    "details": "This is my first constellation, I made it and it is good.",
+    "stars": [
+      [
+        {
+          "x": "-9.2585",
+          "y": "23.2275",
+          "z": "-16.1410",
+          "hip": "677,",
+          "name": "Alpha And"
+        },
+        {
+          "x": "-69.3824",
+          "y": "123.4199",
+          "z": "-78.8781",
+          "hip": "2868,",
+          "name": "Pi And"
+        },
+        {
+          "x": "-21.3276",
+          "y": "31.5326",
+          "z": "-17.2370",
+          "hip": "4436,",
+          "name": "Mu And"
+        },
+        {
+          "x": "-33.8738",
+          "y": "39.2233",
+          "z": "-12.4704",
+          "hip": "7607,",
+          "name": "51 And"
+        }
+      ],
+      [
+        {
+          "x": "-9.2585",
+          "y": "23.2275",
+          "z": "-16.1410",
+          "hip": "677,",
+          "name": "Alpha And"
+        },
+        {
+          "x": "-13.1293",
+          "y": "22.8608",
+          "z": "-16.4340",
+          "hip": "3092,",
+          "name": "Delta And"
+        },
+        {
+          "x": "-32.8276",
+          "y": "43.3946",
+          "z": "-27.8475",
+          "hip": "5447,",
+          "name": "Beta And"
+        },
+        {
+          "x": "-75.3993",
+          "y": "70.3985",
+          "z": "-34.6332",
+          "hip": "9640,",
+          "name": "Gamma And"
+        }
+      ]
+    ]
+  },
+  {
+    "name": "My Constellation 2",
+    "details": "This is my second constellation, I made it and it is good.",
+    "stars": [
+      [
+        {
+          "x": "-24.2630",
+          "y": "-209.2775",
+          "z": "40.7934",
+          "hip": "46515,",
+          "name": "Epsilon Ant"
+        },
+        {
+          "x": "-19.5405",
+          "y": "-109.6010",
+          "z": "38.4611",
+          "hip": "47758,",
+          "name": "Theta Ant"
+        },
+        {
+          "x": "-0.2233",
+          "y": "-103.8908",
+          "z": "42.7940",
+          "hip": "51172,",
+          "name": "Alpha Ant"
+        },
+        {
+          "x": "8.8025",
+          "y": "-56.5019",
+          "z": "21.1679",
+          "hip": "53502,",
+          "name": "Iota Ant"
+        }
+      ]
+    ] 
+  }
+];
+
+//  ----------------------------------------------- Star Cluster From File
+
+const updateStarOpacity = [];
+
+// import star coordinates from file
+var myStars = constellationData.constellationData;
+
+// The star coordinates are three nested lists deep - this is a condition of the dataset
+for (let i = 0; i < myStars.length; i++) {
+  // console.log(myStars[i]);
+  for (let j = 0; j < myStars[i]['stars'].length; j ++ ){
+    // console.log(myStars[i]['stars'][j]);
+    for (let k = 0; k < myStars[i]['stars'][j].length; k++){
+      // console.log(myStars[i]['stars'][j][k]);
+
+      // Randomize star size
+      function generateRandomNumberSize() {
+        var min = 5.0,
+            max = 20.0,
+            highlightedNumber = (Math.random() * (max - min) + min).toFixed(3); // reduces the decimal places for quicker load
+
+          return(highlightedNumber);
+      };
+      var geometryRandom = generateRandomNumberSize();  
+
+      // Randomize star opacity
+      function generateRandomNumberOpacity() {
+        var min = 0.25,
+            max = 1.0,
+            highlightedNumber = (Math.random() * (max - min) + min).toFixed(3); // reduces the decimal places for quicker load
+
+          return(highlightedNumber);
+      };
+      var opacityRandom = generateRandomNumberOpacity();
+
+      // Cluster density controls
+      var xclusterScale = 20;
+      var yclusterScale = 1.7539;
+      var zclusterScale = 20;
+      
+      // Cluster origin placement
+      var zOffset = 0.0;
+      var xOffset = 0.0;
+      var yOffset = 300.0;
+      
+    
+      // controls the overall scale of the star cluster
+      var starScale = 0.1;
+
+      const starMaterial = new THREE.MeshBasicMaterial( {color: 0xffff00, transparent: true, opacity: opacityRandom} );
+      // const starMaterial = new THREE.MeshBasicMaterial( {color: 0xffff00, transparent: true} );
+      const starGeometry = new THREE.SphereGeometry( geometryRandom, geometryRandom, geometryRandom);
+      
+      // Trying to get this to work but to no avail... wanting to get them to flicker or to pulse opacity
+      // updateStarOpacity.push((now, byteFreqData) => {
+      //   starMaterial.opacity = 40 + motion * (Math.sin(now / 10000 + i / 2. + j * 3.) * 10.);
+      // });
+      
+      var starSphere = new THREE.Mesh( starGeometry, starMaterial );
+      
+      starSphere.position.x = (parseFloat(myStars[i]['stars'][j][k]['x']) + xOffset) * xclusterScale;
+      starSphere.position.y = (parseFloat(myStars[i]['stars'][j][k]['y']) + yOffset) * yclusterScale;
+      starSphere.position.z = (parseFloat(myStars[i]['stars'][j][k]['z']) + zOffset) * zclusterScale;
+      
+      starSphere.name = myStars[i]['stars'][j][k]["name"];
+      
+      starSphere.scale.set(starScale, starScale, starScale);
+      
+      scene.add( starSphere );
+    };
+  };
+  
+
+};
+
+//  ----------------------------------------------- End Star Cluster From File
+
+// for (let i = 0; i < constellationData.length; i++){
+//   console.log(constellationData[i])
+// }
+
+console.log(constellationData.constellationData[0]['stars'][1][0]['name']);
+// console.log(constellationData[10]);
+
+// starSphere.position.x = 50;
+// starSphere.position.y = 50; 
+// starSphere.position.z = 50;
+
+// scene.add( starSphere )
+  
+
+  
+  
+
 
   /*let mixer;
   let loader = new THREE.GLTFLoader();
