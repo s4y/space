@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<meta name=viewport content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <link rel=stylesheet href="/style.css">
 
 <div id=room></div>
@@ -312,6 +313,7 @@ const buildGlRoom = (canvas, config) => {
     scene.add(group);
 
     const videoEl = document.createElement('video');
+    videoEl.playsInline = true;
     videoEl.muted = true;
 
     const posSound = new THREE.PositionalAudio(listener);
