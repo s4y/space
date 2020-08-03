@@ -193,13 +193,18 @@ class RTCTestPeer {
     this.state = state;
     this.onChange();
   }
-  setMids(mids) {
-    this.mids = mids;
+  clearMedia() {
+    const stream = this.videoEl.srcObject;
+    for (const track of stream.getTracks())
+      stream.removeTrack(track);
+    this.mids = [];
     this.onChange();
   }
-  setTracks(tracks) {
-    this.videoEl.srcObject = new MediaStream(tracks);
-    this.videoEl.load();
+  addTrack(track) {
+    const stream = this.videoEl.srcObject;
+    stream.addTrack(track);
+    this.videoEl.play();
+    this.onChange();
   }
 }
 
@@ -237,6 +242,8 @@ class RTCTestClient {
   }
 
   initPeer() {
+    if (this.rtcPeer)
+      this.rtcPeer.close();
     const rtcPeer = this.rtcPeer = new RTCPeer({
       config: this.config.rtcConfiguration,
       sendToPeer: message => {
@@ -246,8 +253,9 @@ class RTCTestClient {
           body: { to: 0, message },
         }));
       },
+      mediaStream: this.mediaStream,
     });
-    rtcPeer.setMediaStream(this.mediaStream);
+    // rtcPeer.setMediaStream(this.mediaStream);
   }
 
   createSource() {
@@ -341,23 +349,14 @@ class RTCTestClient {
       case 'rtc':
         this.rtcPeer.receiveFromPeer(body.message);
         break;
-      case 'midMapping':
-        for (const id in body) {
-          const peer = this.peers[id];
-          const mids = body[id];
-          peer.setMids(mids);
-          const tracks = {};
-          for (const mid of mids) {
-            this.rtcPeer.setMidObserver(mid, track => {
-              if (peer.mids != mids) {
-                console.log('old observer, bail');
-                return;
-              }
-              tracks[mid] = track;
-              peer.setTracks(Object.values(tracks));
-            });
-          }
-        }
+      case 'mapTrack':
+        const { mid, id } = body;
+        const peer = this.peers[id];
+        peer.clearMedia();
+        peer.mids.push(mid);
+        this.rtcPeer.setMidObserver(mid, track => {
+          peer.addTrack(track);
+        });
         break;
       default:
         console.log('unknown ws message:', message);

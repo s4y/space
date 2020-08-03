@@ -278,8 +278,11 @@ func main() {
 					Message interface{} `json:"message"`
 				}{0, message}))
 			},
-			SendMidMapping: func(mapping map[uint32][]string) {
-				guest.Write(MakeClientMessage("midMapping", mapping))
+			MapTrack: func(mid string, id uint32) {
+				guest.Write(MakeClientMessage("mapTrack", struct {
+					Mid string `json:"mid"`
+					Id  uint32 `json:"id"`
+				}{mid, id}))
 			},
 		}
 

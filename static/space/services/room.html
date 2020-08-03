@@ -119,8 +119,8 @@ class Room {
     ws.observe('rtc', body => {
       this.handleRTC(body.from, body.message);
     });
-    ws.observe('midMapping', body => {
-      this.updateMidMapping(body);
+    ws.observe('mapTrack', body => {
+      this.mapTrack(body);
     });
   }
   updateGuest(id, state) {
@@ -139,6 +139,13 @@ class Room {
   clearGuests() {
     this.guests = {};
     this.observers.fire('clear');
+  }
+  mapTrack({ mid, id }) {
+    const guest = this.guests[id];
+    this.rtcPeer.setMidObserver(mid, track => {
+      guest[track.kind == 'video' ? 'videoTrack' : 'audioTrack'] = track;
+      this.observers.fire('updateMedia', id, guest);
+    });
   }
   updateMidMapping(mapping) {
     for (const id in mapping) {
