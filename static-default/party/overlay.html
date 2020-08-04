@@ -20,10 +20,30 @@ body {
   transform: scale(-1, 1);
 }
 
+#messages {
+  margin: 0;
+  padding: 0;
+  list-style-type: none;
+
+  color: #fff;
+  font-family: Helvetica, Arial, sans-serif;
+}
+
+#newMessage { pointer-events: all; }
+
 </style>
 <div id=videoMutedEl style="display: none">Camera off</div>
 <div id=audioMutedEl style="display: none">Microphone off</div>
 <video muted id=preview></video>
+
+<div id=chat>
+  <ul id=messages></ul>
+  <form action=# id=newMessage>
+    <input type=text name=newMessageInput id=newMessageInput>
+    <button type=submit id=newMessageSubmit>↑</button>
+  </form>
+</div>
+
 <script type=module>
 
 import Service from '/space/js/Service.js'
@@ -38,6 +58,21 @@ Service.get('userMedia', userMedia => {
   userMedia.observe('stream', stream => {
     preview.srcObject = stream;
     preview.play();
+  });
+});
+
+Service.get('chat', chat => {
+  chat.observe('message', message => {
+    const li = document.createElement('li');
+    li.innerText = message;
+
+    messages.appendChild(li);
+  });
+
+  newMessage.addEventListener('submit', (event) => {
+    event.preventDefault();
+    chat.addMessage(newMessageInput.value);
+    newMessageInput.value = '';
   });
 });
 
