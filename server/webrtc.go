@@ -34,14 +34,15 @@ type TrackAndPLI struct {
 }
 
 type WebRTCPartyLinePeer struct {
+	mutex          sync.RWMutex
 	partyLine      *WebRTCPartyLine
 	ctx            context.Context
 	peerConnection *webrtc.PeerConnection
 	tracks         []TrackAndPLI
 
-	UserInfo       uint32
-	SendToPeer     func(interface{})
-	SendMidMapping func(map[uint32][]string)
+	UserInfo   uint32
+	SendToPeer func(interface{})
+	MapTrack   func(string, uint32)
 }
 
 func NewWebRTCPartyLine(configIn json.RawMessage) *WebRTCPartyLine {
@@ -51,12 +52,12 @@ func NewWebRTCPartyLine(configIn json.RawMessage) *WebRTCPartyLine {
 	}
 
 	mediaEngine := webrtc.MediaEngine{}
-	mediaEngine.RegisterDefaultCodecs()
+	// mediaEngine.RegisterDefaultCodecs()
 	// mediaEngine.RegisterCodec(webrtc.NewRTPOpusCodec(webrtc.DefaultPayloadTypeOpus, 48000))
-	// mediaEngine.RegisterCodec(webrtc.NewRTPPCMUCodec(webrtc.DefaultPayloadTypePCMU, 8000))
-	// mediaEngine.RegisterCodec(webrtc.NewRTPPCMACodec(webrtc.DefaultPayloadTypePCMA, 8000))
-	// mediaEngine.RegisterCodec(webrtc.NewRTPG722Codec(webrtc.DefaultPayloadTypeG722, 8000))
-	// mediaEngine.RegisterCodec(webrtc.NewRTPVP8Codec(webrtc.DefaultPayloadTypeVP8, 90000))
+	mediaEngine.RegisterCodec(webrtc.NewRTPPCMUCodec(webrtc.DefaultPayloadTypePCMU, 8000))
+	mediaEngine.RegisterCodec(webrtc.NewRTPPCMACodec(webrtc.DefaultPayloadTypePCMA, 8000))
+	mediaEngine.RegisterCodec(webrtc.NewRTPG722Codec(webrtc.DefaultPayloadTypeG722, 8000))
+	mediaEngine.RegisterCodec(webrtc.NewRTPVP8Codec(webrtc.DefaultPayloadTypeVP8, 90000))
 	// mediaEngine.RegisterCodec(webrtc.NewRTPH264Codec(webrtc.DefaultPayloadTypeH264, 90000))
 
 	api := webrtc.NewAPI(webrtc.WithMediaEngine(mediaEngine))
@@ -68,6 +69,12 @@ func NewWebRTCPartyLine(configIn json.RawMessage) *WebRTCPartyLine {
 }
 
 func (pl *WebRTCPartyLine) AddPeer(ctx context.Context, p *WebRTCPartyLinePeer) error {
+	pl.peerListMutex.Lock()
+	defer pl.peerListMutex.Unlock()
+
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
 	p.partyLine = pl
 	p.ctx = ctx
 
@@ -76,16 +83,30 @@ func (pl *WebRTCPartyLine) AddPeer(ctx context.Context, p *WebRTCPartyLinePeer) 
 	if err != nil {
 		return err
 	}
-	p.partyLine.peerListMutex.RLock()
+
+	if _, err = p.peerConnection.AddTransceiverFromKind(
+		webrtc.RTPCodecTypeAudio,
+		webrtc.RtpTransceiverInit{Direction: webrtc.RTPTransceiverDirectionRecvonly},
+	); err != nil {
+		return err
+	}
+	if _, err = p.peerConnection.AddTransceiverFromKind(
+		webrtc.RTPCodecTypeVideo,
+		webrtc.RtpTransceiverInit{Direction: webrtc.RTPTransceiverDirectionRecvonly},
+	); err != nil {
+		return err
+	}
+
 	for _, peer := range p.partyLine.peers {
+		peer.mutex.RLock()
 		for _, track := range peer.tracks {
-			err = p.AddTrack(peer.ctx, track.track, track.pliChan)
+			err = p.addTrack(peer, track.track, track.pliChan)
 			if err != nil {
 				fmt.Println("err tracking up: ", err)
 			}
 		}
+		peer.mutex.RUnlock()
 	}
-	p.partyLine.peerListMutex.RUnlock()
 
 	p.peerConnection.OnICECandidate(func(i *webrtc.ICECandidate) {
 		if i != nil {
@@ -157,8 +178,12 @@ func (pl *WebRTCPartyLine) AddPeer(ctx context.Context, p *WebRTCPartyLinePeer) 
 			if peer.peerConnection == nil {
 				continue
 			}
-			// fmt.Println("TRACK UPPP ", track.PayloadType(), track.SSRC(), track.ID(), track.Label())
-			err = peer.AddTrack(ctx, localTrack, pliChan)
+			peer.mutex.Lock()
+			err = peer.addTrack(p, localTrack, pliChan)
+			if err == nil {
+				err = peer.sendOffer()
+			}
+			peer.mutex.Unlock()
 			if err != nil {
 				fmt.Println("err tracking upp: ", err)
 			}
@@ -168,9 +193,7 @@ func (pl *WebRTCPartyLine) AddPeer(ctx context.Context, p *WebRTCPartyLinePeer) 
 		pliChan <- true
 	})
 
-	pl.peerListMutex.Lock()
 	pl.peers = append(pl.peers, p)
-	pl.peerListMutex.Unlock()
 	go func() {
 		<-ctx.Done()
 		pl.RemovePeer(p)
@@ -179,6 +202,8 @@ func (pl *WebRTCPartyLine) AddPeer(ctx context.Context, p *WebRTCPartyLinePeer) 
 }
 
 func (pl *WebRTCPartyLine) RemovePeer(p *WebRTCPartyLinePeer) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 	if p.peerConnection != nil {
 		p.peerConnection.Close()
 	}
@@ -192,7 +217,7 @@ func (pl *WebRTCPartyLine) RemovePeer(p *WebRTCPartyLinePeer) {
 	pl.peerListMutex.Unlock()
 }
 
-func (p *WebRTCPartyLinePeer) SendOffer() error {
+func (p *WebRTCPartyLinePeer) sendOffer() error {
 	offer, err := p.peerConnection.CreateOffer(nil)
 	if err != nil {
 		return err
@@ -205,79 +230,41 @@ func (p *WebRTCPartyLinePeer) SendOffer() error {
 	return nil
 }
 
-func (p *WebRTCPartyLinePeer) AcceptOffer(offer webrtc.SessionDescription) error {
-	if err := p.peerConnection.SetRemoteDescription(offer); err != nil {
-		return err
-	}
-	answer, err := p.peerConnection.CreateAnswer(nil)
-	if err != nil {
-		return err
-	}
-	err = p.peerConnection.SetLocalDescription(answer)
-	if err != nil {
-		return err
-	}
-	p.SendToPeer([]interface{}{"answer", answer})
-	return p.UpdateMidMapping()
-}
-
-func (p *WebRTCPartyLinePeer) AddTrack(ctx context.Context, track *webrtc.Track, pliChan chan bool) error {
-	transceiversBefore := len(p.peerConnection.GetTransceivers())
+func (p *WebRTCPartyLinePeer) addTrack(peer *WebRTCPartyLinePeer, track *webrtc.Track, pliChan chan bool) error {
 	sender, err := p.peerConnection.AddTrack(track)
 	if err != nil {
 		return err
 	}
-	if len(p.peerConnection.GetTransceivers()) > transceiversBefore {
-		switch track.Kind() {
-		case webrtc.RTPCodecTypeAudio:
-			p.SendToPeer([]interface{}{"addtransceiver", "audio"})
-		case webrtc.RTPCodecTypeVideo:
-			p.SendToPeer([]interface{}{"addtransceiver", "video"})
+
+	// Creating an offer is necessary to assign a mid to the new track, even if the offer isn't used.
+	_, _ = p.peerConnection.CreateOffer(nil)
+
+	for _, transceiver := range p.peerConnection.GetTransceivers() {
+		if transceiver.Sender() == sender {
+			p.MapTrack(transceiver.Mid(), peer.UserInfo)
+			break
 		}
-	} else {
-		p.SendToPeer([]interface{}{"renegotiate", nil})
 	}
 	go func() {
 		select {
-		case <-ctx.Done():
+		case <-peer.ctx.Done():
+			p.mutex.Lock()
+			defer p.mutex.Unlock()
 			if err := p.peerConnection.RemoveTrack(sender); err != nil {
 				fmt.Println("error removing old track: ", err)
 			}
-			p.SendToPeer([]interface{}{"renegotiate", nil})
+			if err := p.sendOffer(); err != nil {
+				fmt.Println("error sending offer after removing track: ", err)
+			}
 		case <-p.ctx.Done():
 		}
 	}()
 	return nil
 }
 
-// Fucking yikes. There's gotta be a better way to do this.
-func (p *WebRTCPartyLinePeer) UpdateMidMapping() error {
-	mapping := make(map[uint32][]string)
-	transceivers := p.peerConnection.GetTransceivers()
-	p.partyLine.peerListMutex.RLock()
-	for _, peer := range p.partyLine.peers {
-		for _, track := range peer.tracks {
-			for _, transceiver := range transceivers {
-				mid := transceiver.Mid()
-				if mid == "" {
-					continue
-				}
-				sender := transceiver.Sender()
-				if sender == nil {
-					continue
-				}
-				if transceiver.Sender().Track() == track.track {
-					mapping[peer.UserInfo] = append(mapping[peer.UserInfo], mid)
-				}
-			}
-		}
-	}
-	p.partyLine.peerListMutex.RUnlock()
-	p.SendMidMapping(mapping)
-	return nil
-}
-
 func (p *WebRTCPartyLinePeer) HandleMessage(message json.RawMessage) error {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 	var messagePieces []json.RawMessage
 	if err := json.Unmarshal(message, &messagePieces); err != nil {
 		return err
@@ -291,12 +278,17 @@ func (p *WebRTCPartyLinePeer) HandleMessage(message json.RawMessage) error {
 	}
 	messageBody := messagePieces[1]
 	switch messageType {
-	case "offer":
+	case "answer":
 		var sessionDescription webrtc.SessionDescription
 		if err := json.Unmarshal(messageBody, &sessionDescription); err != nil {
 			fmt.Println("failed to unmarshal rtc offer: ", messageBody)
 		}
-		return p.AcceptOffer(sessionDescription)
+		if err := p.peerConnection.SetRemoteDescription(sessionDescription); err != nil {
+			fmt.Println("failed to use answer: ", err)
+		}
+		return nil
+	case "renegotiate":
+		return p.sendOffer()
 	case "icecandidate":
 		var candidate webrtc.ICECandidateInit
 		if err := json.Unmarshal(messageBody, &candidate); err != nil {

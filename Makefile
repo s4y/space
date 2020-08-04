@@ -1,11 +1,13 @@
 .PHONY: deps
 
-deps: .deps.stamp
+deps: .deps.stamp \
+	static-default/deps/three/build/three.module.js \
+	static-default/deps/three/examples/jsm/loaders/GLTFLoader.js \
 
 run: deps
 	go run ./server
 
-.deps.stamp: static/deps/three.min.js Makefile
+.deps.stamp: Makefile
 	go get -u \
 		github.com/gorilla/websocket \
 		github.com/s4y/reserve \
@@ -13,5 +15,6 @@ run: deps
 
 	touch .deps.stamp
 
-static/deps/three.min.js:
-	mkdir -p static/deps && curl -Lo "$@" https://threejs.org/build/three.min.js
+static-default/deps/three/%:
+	mkdir -p "$(dir $@)"
+	curl -Lo $@ "https://github.com/mrdoob/three.js/raw/master/$*"

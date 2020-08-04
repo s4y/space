@@ -1,13 +1,14 @@
 <!DOCTYPE html>
+<meta name=viewport content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <link rel=stylesheet href="/style.css">
-<script src="/deps/three.min.js"></script>
-<script src="https://cdn.rawgit.com/mrdoob/three.js/master/examples/js/loaders/GLTFLoader.js"></script>
 
 <div id=room></div>
 <canvas id=glRoom></canvas>
 <iframe id=overlay src=overlay.html></iframe>
 <script type=module>
 
+import * as THREE from '/deps/three/build/three.module.js'
+import { GLTFLoader } from '/deps/three/examples/jsm/loaders/GLTFLoader.js'
 import Service from '/space/js/Service.js'
 import RTCPeer from '/space/js/RTCPeer.js'
 import PlayerControls from '/space/js/PlayerControls.js'
@@ -183,7 +184,7 @@ const buildGlRoom = (canvas, config) => {
 
   //GLTF LOADER
   let mixer;
-  let loader = new THREE.GLTFLoader();
+  let loader = new GLTFLoader();
   loader.load('/models/Duck/Duck.gltf', function(gltf){
     const duck = gltf.scene.children[0];
     duck.scale.set(0.2,0.2,0.2);
@@ -312,6 +313,7 @@ const buildGlRoom = (canvas, config) => {
     scene.add(group);
 
     const videoEl = document.createElement('video');
+    videoEl.playsInline = true;
     videoEl.muted = true;
 
     const posSound = new THREE.PositionalAudio(listener);

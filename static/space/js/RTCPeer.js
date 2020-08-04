@@ -1,14 +1,20 @@
 export default class RTCPeer {
   constructor(options) {
     Object.assign(this, options);
-
-    this.tracksByMid = {};
     this.midObservers = {};
+    this.init();
+  }
+
+  init() {
+    this.tracksByMid = {};
 
     const pc = new RTCPeerConnection(this.config);
+    this.close();
     this.pc = pc;
 
-    pc.onnegotiationneeded = e => this.negotiate();
+    pc.onnegotiationneeded = e => {
+      this.sendToPeer(['renegotiate', null]);
+    };
 
     pc.onicecandidate = (e) => {
       if (!e.candidate)
@@ -24,13 +30,8 @@ export default class RTCPeer {
         obs(e.track);
     };
 
-    if (this.mediaStream) {
-      for (const track of this.mediaStream.getTracks())
-        this.pc.addTrack(track, this.mediaStream);
-    } else {
-      pc.addTransceiver('audio');
-      pc.addTransceiver('video');
-    }
+    for (const track of this.mediaStream.getTracks())
+      this.pc.addTrack(track, this.mediaStream);
   }
 
   setMidObserver(mid, observer) {
@@ -38,17 +39,6 @@ export default class RTCPeer {
     const track = this.tracksByMid[mid];
     if (track)
       observer(track);
-  }
-
-  negotiate() {
-    if (this.pendingNegotiations++)
-      return;
-    const {pc} = this;
-    pc.createOffer()
-      .then(offer => {
-        pc.setLocalDescription(offer)
-        this.sendToPeer(['offer', offer]);
-      });
   }
 
   close() {
@@ -62,29 +52,33 @@ export default class RTCPeer {
     if (!this.pc)
       return;
     const {pc} = this;
-    for (const sender of pc.getSenders())
-      pc.removeTrack(sender);
     for (const track of stream.getTracks())
       this.pc.addTrack(track, stream);
   }
 
   receiveFromPeer([name, value]) {
-    // console.log('recv', name, value);
     const {pc} = this;
-    if (name == 'answer') {
+    if (name == 'offer') {
+      this.pendingOffer = value;
       pc.setRemoteDescription(value)
-      const needRenegotiation = this.pendingNegotiations > 1;
-      this.pendingNegotiations = 0;
-      if (needRenegotiation)
-        this.negotiate();
+        .then(() => pc.createAnswer())
+        .then(answer => {
+          if (this.pendingOffer != value)
+            return;
+          this.pendingOffer = null;
+          pc.setLocalDescription(answer)
+            .then(() => {
+              this.sendToPeer(['answer', answer]);
+            });
+        })
+        .catch(e => {
+          console.log(e);
+          this.init();
+        });
     } else if (name == 'icecandidate') {
       pc.addIceCandidate(value).catch(e => {
         // console.log("lol browsers amiright? https://crbug.com/935898", e);
       });
-    } else if (name == 'addtransceiver') {
-      pc.addTransceiver(value);
-    } else if (name == 'renegotiate') {
-      this.negotiate();
     } else {
       console.log(this, 'unknown rtc message:', name, value);
     }
