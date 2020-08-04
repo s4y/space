@@ -11,11 +11,9 @@ export default class Observers {
     const observers = this.getObserverList(key);
     observers.push(cb);
 
-    const unloadListener = () => {
+    win.addEventListener('unload', () => {
       observers.splice(observers.indexOf(cb), 1);
-      win.removeEventListener('unload', unloadListener);
-    };
-    win.addEventListener('unload', unloadListener);
+    }, { once: true });
   }
   fire(key, ...args) {
     for (const cb of this.getObserverList(key))
