@@ -8,8 +8,17 @@ class Chat {
   constructor() {
     this.observers = new Observers();
   }
+
+  setWs(ws) {
+    this.ws = ws;
+    ws.observe('chat', message => {
+      this.observers.fire('message', message);
+    })
+  }
 }
+
 const chat = new Chat();
+Service.get('ws', ws => chat.setWs(ws));
 
 class ChatClient {
   constructor(context) {
@@ -17,11 +26,19 @@ class ChatClient {
   }
 
   observe(key, cb) {
+    // TODO: should this just proxy to `chat.ws.observers.add('chat', this.context, cb)`?
     return chat.observers.add(key, this.context, cb);
   }
 
   addMessage(message) {
-    chat.observers.fire('message', message);
+    chat.ws.send({
+      type: 'chat',
+      body: {
+        // TODO: get 'from' in here?
+        // TODO: maybe sender comes from the server?
+        message
+      }
+    });
   }
 }
 

@@ -344,6 +344,18 @@ func main() {
 				if err := rtcPeer.HandleMessage(messageIn.Message); err != nil {
 					fmt.Println("malformed rtc message from", seq, string(messageIn.Message), err)
 				}
+			case "chat":
+				var chatMessage struct {
+					Message json.RawMessage `json:"message"`
+				}
+				err := json.Unmarshal(msg.Body, &chatMessage)
+				if err != nil {
+					fmt.Println(err)
+					break
+				}
+				if err := rtcPeer.HandleMessage(chatMessage.Message); err != nil {
+					fmt.Println("malformed chat message from", seq, string(chatMessage.Message), err)
+				}
 			default:
 				fmt.Println("unknown message:", msg)
 			}
