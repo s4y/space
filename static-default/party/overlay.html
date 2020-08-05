@@ -39,8 +39,8 @@ body {
 <div id=chat>
   <ul id=messages></ul>
   <form action=# id=newMessage>
-    <input type=text name=newMessageInput id=newMessageInput>
-    <button type=submit id=newMessageSubmit>↑</button>
+    <input type=text name=message>
+    <button type=submit>↑</button>
   </form>
 </div>
 
@@ -75,8 +75,8 @@ Service.get('chat', chat => {
 
   newMessage.addEventListener('submit', (event) => {
     event.preventDefault();
-    chat.addMessage(newMessageInput.value);
-    newMessageInput.value = '';
+    chat.addMessage(newMessage.message.value);
+    newMessage.message.value = '';
   });
 });
 
