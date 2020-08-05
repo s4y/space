@@ -1,9 +1,16 @@
 <!DOCTYPE html>
 <style>
 
+html,
+body {
+  height: 100%;
+}
+
 body {
   font-family: system-ui;
   font-size: 14px;
+
+  margin: 0;
 }
 
 #videoMutedEl, #audioMutedEl {
@@ -20,16 +27,124 @@ body {
   transform: scale(-1, 1);
 }
 
+#chat {
+  width: 100%;
+  max-width: 432px;
+  height: 100%;
+
+  display: flex;
+  flex-direction: column;
+
+  position: relative;
+  overflow: hidden;
+}
+
 #messages {
-  margin: 0;
-  padding: 0;
   list-style-type: none;
 
   color: #fff;
   font-family: Helvetica, Arial, sans-serif;
+
+  margin: 0;
+  padding: 0;
+
+  flex: 0 1 100%;
+  display: flex;
+  flex-direction: column;
+
+  pointer-events: none;
+  visibility: hidden;
 }
 
-#newMessage { pointer-events: all; }
+.message {
+  border-radius: 18px;
+  box-sizing: border-box;
+
+  min-width: 36px;
+  max-width: 70%;
+
+  margin: 4px 16px;
+  padding: 10px 12px;
+
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+
+  line-height: 1;
+
+  position: absolute;
+}
+
+.message > p {
+  margin: 0;
+}
+
+.self {
+  align-self: flex-end;
+}
+
+.other {
+  align-self: flex-start;
+}
+
+#sentinel {
+  position: absolute;
+  width: 100%;
+  height: 1px;
+}
+
+#newMessage {
+  margin: 8px;
+  padding: 3px;
+
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #fff;
+  border-radius: 24px;
+
+  pointer-events: all;
+}
+
+#newMessage > input {
+  border: none;
+  border-radius: 10px 0 0 10px;
+  font-size: 24px;
+
+  color: #fff;
+  background: transparent;
+
+  margin-right: 4px;
+  padding: 0 10px;
+
+  flex: 1 1 auto;
+
+  outline: 0;
+}
+
+#newMessage > button {
+  border: none;
+  border-radius: 20px;
+  font-size: 28px;
+
+  color: #444;
+  background: #fff;
+
+  width: 40px;
+  height: 40px;
+
+  flex: 0 0 auto;
+}
+
+#chat,
+#newMessage > button:disabled {
+  opacity: 0.35;
+}
+
+#chat:focus-within { opacity: 1; }
+#chat:focus-within #messages { visibility: visible; }
 
 </style>
 <div id=videoMutedEl style="display: none">Camera off</div>
@@ -37,10 +152,10 @@ body {
 <video muted id=preview></video>
 
 <div id=chat>
-  <ul id=messages></ul>
+  <ul id=messages><li id=sentinel></li></ul>
   <form action=# id=newMessage>
     <input type=text name=message>
-    <button type=submit>↑</button>
+    <button type=submit name=send disabled>↑</button>
   </form>
 </div>
 
@@ -52,9 +167,11 @@ Service.get('userMedia', userMedia => {
   userMedia.observe('videoMuted', videoMuted => {
     videoMutedEl.style.display = videoMuted ? '' : 'none';
   });
+
   userMedia.observe('audioMuted', audioMuted => {
     audioMutedEl.style.display = audioMuted ? '' : 'none';
   });
+
   userMedia.observe('stream', stream => {
     preview.srcObject = stream;
     preview.play();
@@ -67,17 +184,26 @@ Service.get('room', room => whoami = room.whoami);
 Service.get('chat', chat => {
   chat.observe('message', ({from, message}) => {
     const li = document.createElement('li');
-    li.classList.add(from === chat.whoami ? 'self' : 'other');
-    li.innerText = message;
+    li.classList.add('message', from === chat.whoami ? 'self' : 'other');
+    li.innerHTML = `<p>${message}</p>`;
 
-    messages.appendChild(li);
+    messages.insertBefore(li, sentinel);
   });
 
   newMessage.addEventListener('submit', (event) => {
     event.preventDefault();
     chat.addMessage(newMessage.message.value);
+
     newMessage.message.value = '';
   });
+
+  const onChange = (event) => {
+    newMessage.send.disabled = event.target.value === '';
+  };
+
+  newMessage.message.addEventListener('change', onChange);
+  newMessage.message.addEventListener('keydown', onChange);
+  newMessage.message.addEventListener('keyup', onChange);
 });
 
 </script>
