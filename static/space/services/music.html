@@ -38,7 +38,10 @@ const music = {
     audioEl.src = '/media/music'; 
   },
   updateVolume() {
-    this.musicGain.gain.cancelAndHoldAtTime(this.ac.currentTime);
+    if (this.musicGain.gain.cancelAndHoldAtTime)
+      this.musicGain.gain.cancelAndHoldAtTime(this.ac.currentTime);
+    else
+      this.musicGain.gain.cancelScheduledValues(this.ac.currentTime);
     this.musicGain.gain.linearRampToValueAtTime(this.normalVolume, this.ac.currentTime + this.volumeRampRate);
   },
 };

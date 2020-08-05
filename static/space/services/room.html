@@ -9,9 +9,12 @@ class Player {
   constructor(onchange, state = { position: [], look: [], }) {
     this.onchange = onchange;
     this.position = [Math.random() * 20 - 10, -90 + Math.random() * 10 - 5, 0];
+
+    // Gingerly unpack the saved position from sessionStorage. If anything
+    // isn't a reasonable value, use the default.
     for (let i = 0; i < this.position.length; i++)
       this.position[i] = state.position[i] || this.position[i];
-    this.look = [Math.random() * 20 - 10, -90 + Math.random() * 10 - 5, 0];
+    this.look = [0, 0];
     for (let i = 0; i < this.look.length; i++)
       this.look[i] = state.look[i] || this.look[i];
     this.velocity = [0, 0, 0];
@@ -147,26 +150,6 @@ class Room {
       this.observers.fire('updateMedia', id, guest);
     });
   }
-  updateMidMapping(mapping) {
-    for (const id in mapping) {
-      const mids = mapping[id];
-      const guest = this.guests[id];
-      if (!guest)
-        continue;
-      guest.mids = mids;
-      for (const mid of mids) {
-        this.rtcPeer.setMidObserver(mid, track => {
-          if (guest.mids != mids) {
-            console.log('old observer, bail');
-            return;
-          }
-          guest[track.kind == 'video' ? 'videoTrack' : 'audioTrack'] = track;
-          this.observers.fire('updateMedia', id, guest);
-        });
-      }
-    }
-  }
-
   handleRTC(from, message) {
     if (this.rtcPeer)
       this.rtcPeer.receiveFromPeer(message);

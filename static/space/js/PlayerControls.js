@@ -1,13 +1,16 @@
+import Service from './Service.js'
+
 export default class PlayerControls {
   constructor() {
     this.player = null;
     this.acceleration = [0, 0, 0];
+    this.jumpStrength = 1;
     const direction = {
-      87: [0, 1, 0],
-      83: [0, -1, 0],
-      65: [-1, 0, 0],
-      68: [1, 0, 0],
-      32: [0, 0, 1],
+      87: () => [0, 1, 0],
+      83: () => [0, -1, 0],
+      65: () => [-1, 0, 0],
+      68: () => [1, 0, 0],
+      32: () => [0, 0, this.jumpStrength],
     };
     const keysDown = {};
     const updateAcceleration = () => {
@@ -18,9 +21,10 @@ export default class PlayerControls {
       for (const k in keysDown) {
         if (!keysDown[k])
           continue;
-        x += direction[k][0];
-        z += direction[k][1];
-        y += direction[k][2];
+        const dir = direction[k]();
+        x += dir[0];
+        z += dir[1];
+        y += dir[2];
       }
       const accel = [
         x * Math.cos(look[0]) + z * Math.sin(look[0]),
@@ -42,6 +46,13 @@ export default class PlayerControls {
 
     window.top.addEventListener('keydown', handleKey(true));
     window.top.addEventListener('keyup', handleKey(false));
+
+    // TODO: Way to unsubscribe
+    Service.get('knobs', knobs => {
+      knobs.observe('physics.jumpStrength', jumpStrength => {
+        this.jumpStrength = jumpStrength;
+      });
+    });
 
     const moveListener = e => {
       const { look } = this.player;
