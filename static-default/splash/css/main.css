@@ -42,7 +42,7 @@ a:hover { color: #FF0; }
 }
 
 .baner-content {
-  padding-top: 20vh;
+  padding-top: 15vh;
   text-align: center;
   background-image: url(../imgs/bg_placeholder_dk.png);
 }
@@ -87,9 +87,18 @@ a:hover { color: #FF0; }
   color: #fff;
 }
 
+h3, .h3 {
+  font-size: 20px;
+  text-align: center;
+  color: #fff;
+  padding-top: 5vh;
+  padding-bottom: 20vh;
+}
+
 h4, .h4 {
   font-size: 18px;
   text-align: left;
+  color: #fff;
 }
 
 .instruction-content .center-text .line-dec {
@@ -193,6 +202,12 @@ h4, .h4 {
   content:"";
   display:table;
   clear:both;
+}
+
+footer {
+  text-align: center;
+  background-color: #282b2f;
+  padding: 70px 0px;
 }
 
 
