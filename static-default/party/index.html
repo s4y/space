@@ -11,6 +11,7 @@ import * as THREE from '/deps/three/build/three.module.js'
 import { GLTFLoader } from '/deps/three/examples/jsm/loaders/GLTFLoader.js'
 import Service from '/space/js/Service.js'
 import RTCPeer from '/space/js/RTCPeer.js'
+import RTCLoopback from '/space/js/RTCLoopback.js'
 import PlayerControls from '/space/js/PlayerControls.js'
 
 const hqs = location.hash
@@ -111,7 +112,33 @@ const buildGlRoom = (canvas, config) => {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(60);
   camera.rotation.order = 'YXZ';
+
   const listener = new THREE.AudioListener();
+
+  // Work around for missing echo cancellation on many kinds of audio:
+  // https://crbug.com/687574
+  if (navigator.userAgent.indexOf('Chrome') != -1) {
+    const loopbackDestination = listener.context.createMediaStreamDestination();
+    const loopbackEl = document.createElement('audio');
+    const loopback = new RTCLoopback(stream => {
+      listener.gain.disconnect(listener.context.destination);
+      listener.gain.connect(loopbackDestination);
+      loopbackEl.srcObject = loopback.outputStream;
+      gestureWrangler.playVideo(loopbackEl);
+
+      Service.get('music', music => {
+        window.top.music = music;
+        const musicDestination = music.ac.createMediaStreamDestination();
+        const localMusicSource = listener.context.createMediaStreamSource(musicDestination.stream);
+        music.musicGain.disconnect();
+        music.musicGain.connect(musicDestination);
+        localMusicSource.connect(loopbackDestination);
+      });
+    });
+
+    loopback.setInputStream(loopbackDestination.stream);
+  }
+
   gestureWrangler.playAudioContext(listener.context);
   camera.add(listener);
   const renderer = new THREE.WebGLRenderer({
