@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/pion/rtcp"
-	webrtc "github.com/pion/webrtc"
+	webrtc "github.com/pion/webrtc/v3"
 )
 
 // Based on https://github.com/pion/webrtc/tree/master/examples/broadcast
