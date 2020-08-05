@@ -48,15 +48,14 @@ const music = {
 
 Service.get('knobs', knobs => {
   music.start();
+  Service.register('music', context => music);
   knobs.observe('music.volumeRampRate', v => {
-    music.volumeRampRate = v * 20;
+    music.volumeRampRate = v;
   }, 1);
   knobs.observe('music.volume', v => {
     music.normalVolume = v;
     music.updateVolume();
   }, 0);
 });
-
-Service.register('music', context => music);
 
 </script>
