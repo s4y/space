@@ -1,84 +1,50 @@
 <!DOCTYPE html>
-<title>Space</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel=stylesheet href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;600&display=block">
-<style>
+<html lang="en">
 
-html {
-  padding: 1em;
-}
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <title>Homeward Bound Open House</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
 
-h2 {
-  max-width: 14em;
-  margin-left: auto;
-  margin-right: auto;
-}
+  <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700,800" rel="stylesheet">
+  <link rel=stylesheet href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;600&display=block">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="style.css">
 
-h3 {
-  font-size: 1.1em;
-}
+  <link rel="stylesheet" href="css/bootstrap.min.css">
+  <link rel="stylesheet" href="css/fontAwesome.css">
+  <link rel="stylesheet" href="css/main.css">
+</head>
 
-body {
-  border: 0.2em double black;
-  box-sizing: border-box;
-  max-width: 26em;
-  padding: 0 1em;
-  margin: 1em auto;
-  font: 22px 'EB Garamond', serif;
-  text-align: center;
+<body>
+  <div class="parallax-content baner-content" id="home">
+    <img src='imgs/TWW_LOGO.png' width="150" height="150">
+      <div class="container">
+          <div class="first-content">
+              <h1>Homeward <em>Bound</em></h1>
+              <span>Open House</span>
+          </div>
 
-  box-shadow: 
-    0 10px 20px rgba(0, 0, 0, 0.2),
-    0 30px 60px rgba(0, 0, 0, 0.2)
-  ;
-}
+          <div class="instruction-content" id="instructions">
+              <div class="container">
+                          <div class="instruction-item">
+                              <h4>How To Navigate</h4>
+                              <div class="line-dec"></div>
+                              <ul>
+                                  <li>Click and use the mouse to look around.</li>
+                                  <li>Press <strong>W-A-S-D keys</strong> to walk.</li>
+                                  <li>Chrome (or another Chromium-based browser) is strongly recommended, for now.</li>
+                              </ul>
+                          </div>
+                          <div class="primary-button" id=start-button>
+                            <p id=conndetails>Connection details will be found here.</p>
+                          </div>
 
-a:link, a:visited {
-  color: #00c;
-}
+                </div>
+            </div>
+      </div>
+    </div>
 
-a:active {
-  color: #f0f;
-}
-
-.nb {
-  white-space: nowrap;
-}
-
-hr {
-  width: 50%;
-  border: none;
-  border-top: 1px solid #aaa;
-}
-
-aside {
-  margin: 1em 1em;
-  background: #ffd;
-  border: 1px solid #555;
-  text-align: left;
-  padding: 0.5em;
-  font-size: 0.9em;
-}
-
-aside ul, aside h3, aside li {
-  margin: .25em 0;
-}
-
-@media only screen and (max-width: 600px) {
-  html {
-    padding: 0 1em;
-  }
-}
-
-</style>
-<h2>
-  Party on.
-</h2>
-<aside>Note:
-  <ul>
-    <li>Chrome (or another Chromium-based browser) is strongly recommended, for now.</li>
-    <li>Click and used the mouse to look around.</li>
-    <li>Use the W-A-S-D keys to walk.</li>
-  </li>
-</aside>
-<p id=conndetails>Connection details will be found here.</p>
+</body>
+</html>

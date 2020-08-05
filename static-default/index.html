@@ -21,6 +21,17 @@ body > iframe {
   height: 100%;
 }
 
+.button {
+  display: inline-block;
+  background-color: #ca006a;
+  padding: 15px 24px;
+  border-radius: 10px;
+  font-size: 18px;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 #partyFrame {
   background: black;
 }
@@ -46,7 +57,10 @@ body > iframe {
 </style>
 <body>
 <div id=serviceFrames></div>
-<div id=needGesture style="display: none"><button type=button>Click to unmute</button></div>
+<div id=needGesture style="display: none">
+    <button class="button">Click to unmute</button>
+</div>
+
 <script type=module>
 
 import Service from '/space/js/Service.js';
@@ -62,22 +76,21 @@ Service.get('gestureWrangler', w => {
 const prepSplash = () => {
   const doc = splashFrame.contentDocument;
 
+  const startButton = doc.getElementById('start-button');
   const connDetails = doc.getElementById('conndetails');
   const goLink = doc.createElement('a');
-  goLink.style.fontSize = '1.2em';
-  goLink.style.fontWeight = 'bold';
   goLink.href = '';
-  goLink.textContent = 'Click here to join.';
+  goLink.textContent = 'Enter';
   connDetails.innerHTML = '';
-  connDetails.appendChild(goLink);
+  startButton.appendChild(goLink);
 
   splashFrame.offsetWidth;
   splashFrame.style.opacity = '1';
-  splashFrame.style.background = 'white';
+  splashFrame.style.background = 'black';
   splashFrame.style.backdropFilter = 'blur(20px)';
 
-  doc.body.style.background = 'white';
-  doc.documentElement.style.background = 'rgba(255, 255, 255, 0.05)';
+  doc.body.style.background = 'black'; //eozin
+  doc.documentElement.style.background = 'rgba(255, 255, 255, 0.05)'; //eozin
 
   goLink.addEventListener('mousedown', e => {
     e.preventDefault();
@@ -105,7 +118,7 @@ const prepSplash = () => {
     });
 
     gestureWrangler.onGesture();
-  }); 
+  });
 };
 
 const partyFrame = document.createElement('iframe');

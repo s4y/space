@@ -1,19 +1,15 @@
-html {
-  padding: 1em;
+h2 {
+  max-width: 14em;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-body {
-  border: 0.2em double black;
-  max-width: 25em;
-  padding: 0 1em;
-  margin: 1em auto;
-  font: 22px 'EB Garamond', serif;
-  text-align: center;
+h3 {
+  font-size: 1.1em;
+}
 
-  box-shadow: 
-    0 10px 20px rgba(0, 0, 0, 0.2),
-    0 30px 40px rgba(0, 0, 0, 0.1)
-  ;
+div {
+    display: block;
 }
 
 #seal {
@@ -25,6 +21,14 @@ body {
 
 a:link, a:visited {
   color: #00c;
+}
+
+a:active {
+  color: #f0f;
+}
+
+.nb {
+  white-space: nowrap;
 }
 
 .nw {
@@ -42,3 +46,21 @@ hr {
   border-top: 1px solid #aaa;
 }
 
+aside {
+  margin: 1em 1em;
+  background: #ffd;
+  border: 1px solid #555;
+  text-align: left;
+  padding: 0.5em;
+  font-size: 0.9em;
+}
+
+aside ul, aside h3, aside li {
+  margin: .25em 0;
+}
+
+@media only screen and (max-width: 600px) {
+  html {
+    padding: 0 1em;
+  }
+}
