@@ -1,20 +1,130 @@
 <!DOCTYPE html>
 <body>
+<button type=button onclick="adminAction('reload', '/party/')">Reload renderer</button>
+<button type=button onclick="adminAction('reload', '/party/overlay.html')">Reload overlay</button>
+<button type=button onclick="adminAction('reload', '/')">Reload everything</button>
+<button type=button onclick="adminAction('reconnect', 'webrtc')">Reconnect WebRTC</button>
+<button type=button onclick="adminAction('reconnect', 'websocket')">Reconnect WebSocket</button>
+<ul id=knobsEl></ul>
+<template id=knobTemplate>
+  <li>
+    <button data-key=map type=button>Map</button>
+    <input data-key=input type=range min=0 max=1 step="0.001"></input>
+    <span data-key=value></span>
+    <span data-key=label></span>
+  </li>
+</template>
 <script type=module>
 
-let knobs = {
+class Knobs {
+  constructor(config) {
+    this.config = config;
+    this.knobs = {};
+  }
+
+  get(knob) {
+    return this.knobs[knob];
+  }
+
+  set(knob, value) {
+    const config = this.config[knob];
+    if (!config)
+      throw new Error('unknown knob:', knob);
+    if (config.min)
+      value = Math.max(config.min, value);
+    if (config.max)
+      value = Math.min(config.max, value);
+    this.knobs[knob] = value;
+    this.onchange && this.onchange(knob, value);
+  }
 };
 
+class TwisterMIDIController {
+  constructor(input, output) {
+    this.input = input;
+    this.output = output;
+    this.mappings = {};
+
+    input.addEventListener('midimessage', e => this.handleMessage(...e.data));
+  }
+  map(initialValue, callback) {
+    this.onNextPress = button => {
+      this.onNextPress = null;
+      this.set(button, initialValue);
+      this.mappings[button] = callback;
+    };
+  }
+  handleMessage(channel, note, value) {
+    // console.log('handle this shit', channel, note, value);
+    if (channel === 177 && value === 127) {
+      this.onNextPress && this.onNextPress(note);
+    } else if (channel === 176) {
+      const mapping = this.mappings[note];
+      if (mapping)
+        mapping(value / 127);
+    }
+  }
+  set(button, value) {
+    this.output.send([176, button, Math.floor(value * 127)]);
+  }
+}
+
+const knobs = window.knobs = new Knobs({
+  'posAudio.refDistance': { min: 0, max: 50 },
+  'posAudio.rolloffFactor': { min: 0, max: 10 },
+  'music.volume': { min: 0, max: 1 },
+  'music.volumeRampRate': { min: 0, max: 10 },
+  'world.musicReactivity': { min: 0, max: 1 },
+  'world.motion': { min: 0, max: 1 },
+  'world.nightness': { min: 0, max: 1 },
+  'physics.jumpStrength': { min: 0, max: 5 },
+});
+
+let conn;
+let midiController;
+
+for (const knob in knobs.config) {
+  const knobEl = knobTemplate.content.cloneNode(true);
+  const mapButton = knobEl.querySelector('[data-key=map]');
+  const inputEl = knobEl.querySelector('[data-key=input]');
+  const labelEl = knobEl.querySelector('[data-key=label]');
+  const valueEl = knobEl.querySelector('[data-key=value]');
+
+  mapButton.addEventListener('click', e => {
+    midiController.map(knobs.get(knob) / knobs.config[knob].max, v => {
+      const newValue = v * knobs.config[knob].max;
+      knobs.set(knob, newValue);
+      inputEl.valueAsNumber = v;
+      valueEl.textContent = newValue.toFixed(2);
+    });
+  });
+  labelEl.textContent = knob;
+  knobsEl.appendChild(knobEl);
+}
+
+const sendKnob = (name, value) => {
+  conn && conn.send('setKnob', { name, value });
+  localStorage.knobs = JSON.stringify(knobs.knobs);
+};
+
+knobs.onchange = sendKnob;
+
 try {
-  Object.assign(knobs, JSON.parse(window.localStorage.knobs || '{}'));
+  if (window.localStorage.knobs) {
+    const savedKnobs = JSON.parse(window.localStorage.knobs);
+    console.log(savedKnobs);
+    for (const knob in savedKnobs) {
+      if (knob in knobs.config)
+        knobs.set(knob, savedKnobs[knob]);
+    }
+  }
 } catch (e) {
   console.log('doot', e);
 }
 
-let conn;
-
 const connectWs = () => {
   const ws = new WebSocket(`${location.protocol == 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+
   ws.onclose = e => {
     setTimeout(connectWs, 1000);
   };
@@ -24,8 +134,8 @@ const connectWs = () => {
     console.log('message', type, body);
   };
   ws.onopen = e => {
-    for (const k in knobs)
-      conn.send('setKnob', { name: k, value: knobs[k] });
+    for (const k in knobs.knobs)
+      conn.send('setKnob', { name: k, value: knobs.knobs[k] });
   };
 
   conn = {
@@ -35,34 +145,19 @@ const connectWs = () => {
   };
 };
 
+window.adminAction = (type, body) => {
+  conn && conn.send('broadcast', { type, body });
+};
+
 connectWs();
-
-let midiMap = {
-  knob7: 'world.musicReactivity',
-  fader7: 'world.motion',
-  knob9: 'music.volumeRampRate',
-  fader9: 'music.volume',
-
-  knob1: 'posAudio.refDistance',
-  knob2: 'posAudio.rolloffFactor',
-};
-
-import PMIDIP30Controller from '/js/PMIDIP30Controller.js'
-
-const onMidiChange = (control, value) => {
-  const name = midiMap[control];
-  if (!name)
-    return;
-  conn.send('setKnob', { name, value });
-  knobs[name] = value;
-  window.localStorage.knobs = JSON.stringify(knobs);
-};
 
 navigator.requestMIDIAccess({
   sysex: false
 }).then(midi => {
   const input = midi.inputs.values().next().value;
-  new PMIDIP30Controller(input, onMidiChange);
+  const output = midi.outputs.values().next().value;
+  if (input && output)
+    midiController = new TwisterMIDIController(input, output);
 });
 
 </script>
