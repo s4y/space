@@ -61,9 +61,13 @@ Service.get('userMedia', userMedia => {
   });
 });
 
+let whoami;
+Service.get('room', room => whoami = room.whoami);
+
 Service.get('chat', chat => {
-  chat.observe('message', message => {
+  chat.observe('message', ({from, message}) => {
     const li = document.createElement('li');
+    li.classList.add(from === chat.whoami ? 'self' : 'other');
     li.innerText = message;
 
     messages.appendChild(li);

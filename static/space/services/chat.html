@@ -15,10 +15,15 @@ class Chat {
       this.observers.fire('message', message);
     })
   }
+
+  setSelf(whoami) {
+    this.whoami = whoami;
+  }
 }
 
 const chat = new Chat();
 Service.get('ws', ws => chat.setWs(ws));
+Service.get('room', room => chat.setSelf(room.whoami));
 
 class ChatClient {
   constructor(context) {
@@ -26,16 +31,18 @@ class ChatClient {
   }
 
   observe(key, cb) {
-    // TODO: should this just proxy to `chat.ws.observers.add('chat', this.context, cb)`?
     return chat.observers.add(key, this.context, cb);
   }
 
   addMessage(message) {
+    chat.observers.fire('message', {
+      from: chat.whoami,
+      message
+    });
+
     chat.ws.send({
       type: 'chat',
       body: {
-        // TODO: get 'from' in here?
-        // TODO: maybe sender comes from the server?
         message
       }
     });
