@@ -1,7 +1,6 @@
 html {
   -webkit-user-select: none;
   user-select: none;
-  /* pointer-events: none; */
   touch-action: none;
 }
 
@@ -42,7 +41,6 @@ html, body, #room {
   height: 100%;
   background: white;
   border: none;
-  /* pointer-events: none; */
 }
 
 #glRoom {
@@ -62,6 +60,5 @@ html, body, #room {
   width: 100vw;
   height: 100vh;
   margin: 0;
-  /* pointer-events: none; */
   border: none;
 }

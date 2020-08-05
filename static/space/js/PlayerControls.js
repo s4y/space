@@ -51,7 +51,7 @@ export default class PlayerControls {
     Service.get('knobs', knobs => {
       knobs.observe('physics.jumpStrength', jumpStrength => {
         this.jumpStrength = jumpStrength;
-      });
+      }, 1);
     });
 
     const moveListener = e => {
@@ -79,6 +79,9 @@ export default class PlayerControls {
         window.top.topDoc.exitPointerLock();
     }
     window.addEventListener('mousedown', e => {
+      if (e.target != document.documentElement)
+        return;
+      window.top.focus();
       e.preventDefault();
       topDoc.body.addEventListener('mousemove', moveListener);
       topDoc.body.requestPointerLock();

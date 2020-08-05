@@ -12,7 +12,8 @@ import { GLTFLoader } from '/deps/three/examples/jsm/loaders/GLTFLoader.js'
 import Service from '/space/js/Service.js'
 import RTCPeer from '/space/js/RTCPeer.js'
 import RTCLoopback from '/space/js/RTCLoopback.js'
-import PlayerControls from '/space/js/PlayerControls.js'
+
+Service.get('docent', docent => {});
 
 const hqs = location.hash
   .substr(1)
@@ -507,7 +508,6 @@ const buildGlRoom = (canvas, config) => {
 
 const buildRoom = (el, config) => {
   let player;
-  const controls = new PlayerControls();
   const glRoom = buildGlRoom(document.getElementById('glRoom'), {
     roomEl: el,
     ...config
@@ -531,7 +531,6 @@ const buildRoom = (el, config) => {
   };
   const draw = rawNow => {
     const now = rawNow + timeOffset;
-    player.applyAcceleration(controls.acceleration);
     player.stepPhysics();
     const { position, look } = player;
     glRoom.draw({ now, position, look });
@@ -539,7 +538,7 @@ const buildRoom = (el, config) => {
   };
 
   Service.get('room', room => {
-    player = controls.player = room.player;
+    player = room.player;
 
     room.observe('update', (id, state) => {
       if (state)
