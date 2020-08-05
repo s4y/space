@@ -45,6 +45,13 @@ const ws = {
 
 ws.connect();
 
+Service.get('docent', docent => {
+  docent.observe('reconnect', what => {
+    if (what == 'websocket')
+      ws.open && ws.connect();
+  })
+});
+
 class WsClient {
   constructor(context) {
     this.context = context;

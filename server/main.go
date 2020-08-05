@@ -234,6 +234,8 @@ func startManagementServer(managementAddr string) {
 				knobs[knob.Name] = knob.Value
 				knobsMutex.Unlock()
 				world.BroadcastFrom(0, MakeClientMessage("knob", knob))
+			case "broadcast":
+				world.BroadcastFrom(0, msg.Body)
 			default:
 				fmt.Println("unknown message:", msg)
 			}

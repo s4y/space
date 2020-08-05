@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<script type=module>
+
+import Service from '../js/Service.js';
+import Observers from '../js/Observers.js';
+
+class DocentClient {
+  constructor(context) {
+    this.context = context;
+    this.observers = new Observers();
+    Service.get('ws', ws => {
+      ws.observe('reload', what => {
+        if (context.location.pathname == what)
+          context.location.reload(true);
+      });
+      ws.observe('reconnect', what => {
+        this.observers.fire('reconnect', what);
+      });
+    });
+  }
+  observe(key, cb) {
+    return this.observers.add(key, this.context, cb);
+  }
+}
+
+Service.register('docent', context => new DocentClient(context));
+
+</script>

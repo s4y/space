@@ -192,6 +192,7 @@ class Room {
     // TODO: use replaceTrack() instead?
     for (const track of this.mediaStream.getTracks())
       this.mediaStream.removeTrack(track);
+    this.mediaStream = mediaStream;
     for (const track of mediaStream.getTracks())
       this.mediaStream.addTrack(track);
     if (this.rtcPeer)
@@ -226,6 +227,13 @@ Service.get('userMedia', userMedia => {
 });
 
 Service.get('ws', ws => room.setWs(ws));
+
+Service.get('docent', docent => {
+  docent.observe('reconnect', what => {
+    if (what == 'webrtc')
+      if (room.whoami) room.connectRTC()
+  });
+});
 
 class RoomClient {
   constructor(context) {

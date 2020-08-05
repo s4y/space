@@ -14,6 +14,8 @@ import RTCPeer from '/space/js/RTCPeer.js'
 import RTCLoopback from '/space/js/RTCLoopback.js'
 import PlayerControls from '/space/js/PlayerControls.js'
 
+Service.get('docent', docent => {});
+
 const hqs = location.hash
   .substr(1)
   .split('&')
