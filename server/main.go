@@ -248,6 +248,7 @@ func startManagementServer(managementAddr string) {
 func main() {
 	staticDir := flag.String("static", "./static-default", "Directory for static content")
 	httpAddr := flag.String("http", "127.0.0.1:8031", "Listening address")
+	production := flag.Bool("p", false, "Production (disables automatic hot reloading)")
 	managementAddr := flag.String("management", "127.0.0.1:8034", "Listening address for admin pages")
 	flag.Parse()
 	fmt.Printf("http://%s/\n", *httpAddr)
@@ -354,8 +355,15 @@ func main() {
 	})
 	http.Handle("/media/music", makeMusicHandler())
 	// http.Handle("/astream/", http.FileServer(http.Dir(".")))
-	http.Handle("/space/", reserve.FileServer("static"))
-	http.Handle("/", reserve.FileServer(http.Dir(*staticDir)))
+	if *production {
+		fileServer := http.FileServer(http.Dir(*staticDir))
+		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Cache-Control", "must-revalidate")
+			fileServer.ServeHTTP(w, r)
+		})
+	} else {
+		http.Handle("/", reserve.FileServer(http.Dir(*staticDir)))
+	}
 
 	go startManagementServer(*managementAddr)
 	log.Fatal(http.Serve(ln, nil))
