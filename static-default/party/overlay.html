@@ -249,7 +249,10 @@ Service.get('chat', chat => {
   chat.observe('message', ({from, message}) => {
     const li = document.createElement('li');
     li.classList.add('message', from === chat.whoami ? 'self' : 'other');
-    li.innerHTML = `<p>${message}</p>`;
+
+    const p = document.createElement('p');
+    p.textContent = message;
+    li.appendChild(p);
 
     messages.insertBefore(li, sentinel);
 
