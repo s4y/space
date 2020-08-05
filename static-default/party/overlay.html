@@ -48,12 +48,12 @@ body {
   margin: 0;
   padding: 0;
 
+  position: relative;
+  overflow: scroll;
+
   flex: 0 1 100%;
   display: flex;
   flex-direction: column;
-
-  pointer-events: none;
-  visibility: hidden;
 }
 
 .message {
@@ -77,6 +77,7 @@ body {
 
 .message > p {
   margin: 0;
+  word-wrap: break-word;
 }
 
 .self {
@@ -138,13 +139,23 @@ body {
   flex: 0 0 auto;
 }
 
-#chat,
 #newMessage > button:disabled {
   opacity: 0.35;
 }
 
+/* downplay the chat interface when it's not focused */
+#chat { opacity: 0.35; }
+#messages {
+  pointer-events: none;
+  visibility: hidden;
+}
+
+/* make it work when it's children are focused */
 #chat:focus-within { opacity: 1; }
-#chat:focus-within #messages { visibility: visible; }
+#chat:focus-within #messages {
+  pointer-events: all;
+  visibility: visible;
+}
 
 </style>
 <div id=videoMutedEl style="display: none">Camera off</div>
@@ -178,8 +189,39 @@ Service.get('userMedia', userMedia => {
   });
 });
 
+/**
+ * helpers for measuring stuff
+ */
+const { getComputedStyle: getStyle } = window;
+
+// (el: HTMLElement) => number
+const outerTop = (el) => {
+  const { marginTop } = getStyle(el);
+  return el.offsetTop - parseInt(marginTop, 10);
+};
+
+// (el: HTMLElement) => number
+const outerHeight = (el) => {
+  const { marginTop, height, marginBottom } = getStyle(el);
+  return [marginTop, height, marginBottom].reduce(
+    (acc, px) => acc + parseInt(px, 10),
+    0,
+  );
+};
+
+/**
+ * classic self vs. other setup here
+ */
 let whoami;
 Service.get('room', room => whoami = room.whoami);
+
+/**
+ * view state for the chat interface
+ */
+let messagesHeight = messages.clientHeight;
+
+// init the sentinel at the "bottom" of the messages content box
+sentinel.style.top = `${messagesHeight}px`;
 
 Service.get('chat', chat => {
   chat.observe('message', ({from, message}) => {
@@ -188,6 +230,14 @@ Service.get('chat', chat => {
     li.innerHTML = `<p>${message}</p>`;
 
     messages.insertBefore(li, sentinel);
+
+    // set the new message to the current "bottom" of the message content box
+    li.style.top = `${messagesHeight + outerTop(li)}px`;
+    messagesHeight += outerHeight(li);
+
+    // update the sentinel
+    sentinel.style.top = `${messagesHeight}px`;
+    sentinel.scrollIntoView({ behavior: 'smooth' });
   });
 
   newMessage.addEventListener('submit', (event) => {
