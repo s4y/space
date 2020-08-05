@@ -79,6 +79,9 @@ export default class PlayerControls {
         window.top.topDoc.exitPointerLock();
     }
     window.addEventListener('mousedown', e => {
+      if (e.target != document.documentElement)
+        return;
+      window.top.focus();
       e.preventDefault();
       topDoc.body.addEventListener('mousemove', moveListener);
       topDoc.body.requestPointerLock();

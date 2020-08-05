@@ -23,10 +23,35 @@ body {
 </style>
 <div id=videoMutedEl style="display: none">Camera off</div>
 <div id=audioMutedEl style="display: none">Microphone off</div>
-<video muted id=preview></video>
+<video muted id=preview playsinline></video>
 <script type=module>
 
 import Service from '/space/js/Service.js'
+import PlayerControls from '/space/js/PlayerControls.js'
+
+let player;
+const controls = new PlayerControls();
+
+requestAnimationFrame(function applyAcceleration() {
+  player && player.applyAcceleration(controls.acceleration);
+  requestAnimationFrame(applyAcceleration);
+});
+
+const topDoc = window.top.document;
+topDoc.addEventListener('pointerlockchange', e => {
+  if (topDoc.pointerLockElement)
+    document.documentElement.classList.add('pointerLocked');
+  else {
+    document.documentElement.classList.remove('pointerLocked');
+    document.querySelector('#chatInput>input').focus();
+  }
+});
+
+Service.get('docent', docent => {});
+
+Service.get('room', room => {
+  player = controls.player = room.player;
+});
 
 Service.get('userMedia', userMedia => {
   userMedia.observe('videoMuted', videoMuted => {
