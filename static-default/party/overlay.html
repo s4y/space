@@ -273,13 +273,9 @@ Service.get('chat', chat => {
     newMessage.message.value = '';
   });
 
-  const onChange = (event) => {
+  newMessage.message.addEventListener('input', event => {
     newMessage.send.disabled = event.target.value === '';
-  };
-
-  newMessage.message.addEventListener('change', onChange);
-  newMessage.message.addEventListener('keydown', onChange);
-  newMessage.message.addEventListener('keyup', onChange);
+  });
 });
 
 </script>
