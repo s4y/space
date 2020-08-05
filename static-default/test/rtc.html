@@ -71,6 +71,13 @@ window.onerror = (e, f, l, c) => {
   errlog.appendChild(err);
 };
 
+window.hqs = location.hash
+  .substr(1)
+  .split('&')
+  .filter(v => v)
+  .map(c => c.split('=').map(decodeURIComponent))
+  .reduce((params, [k, v]) => (params[k] = v, params), {});
+
 </script>
 <script type=module>
 
@@ -183,6 +190,8 @@ class RTCTestPeer {
     this.videoEl = document.createElement('video');
     this.videoEl.autoplay = true;
     this.videoEl.muted = true;
+    // this.videoEl.controls = true;
+    this.videoEl.srcObject = new MediaStream([]);
   }
   teardown() {
     this.videoEl.pause();
@@ -203,8 +212,14 @@ class RTCTestPeer {
   addTrack(track) {
     const stream = this.videoEl.srcObject;
     stream.addTrack(track);
-    this.videoEl.play();
+    this.videoEl.srcObject = this.videoEl.srcObject;
     this.onChange();
+  }
+  removeTrack(track) {
+    if (!this.videoEl.srcObject)
+      return;
+    const stream = this.videoEl.srcObject;
+    stream.removeTrack(track);
   }
 }
 
@@ -212,10 +227,12 @@ class RTCTestClient {
   constructor() {
     this.peers = {};
     this.createSource();
+    if (hqs.sound)
+      this.createAudioSource();
     this.getConfig()
       .then(() => {
         this.connectWs();
-        this.scheduleMovement();
+        // this.scheduleMovement();
       });
   }
 
@@ -300,6 +317,32 @@ class RTCTestClient {
     this.mediaStream = canvas.captureStream();
   }
 
+  createAudioSource() {
+    const ac = this.ac = new AudioContext();
+    const destination = ac.createMediaStreamDestination();
+
+    const schedulePing = () => {
+      const now = +new Date();
+      const nextSecond = now + (1000 - now % 1000);
+      setTimeout(() => {
+        const osc = ac.createOscillator();
+        osc.frequency.value = 440 * Math.pow(2, (+hqs.sound / 12));
+        osc.start();
+        osc.stop(ac.currentTime + 2);
+        const gain = ac.createGain();
+        gain.gain.value = 0.5;
+        gain.gain.setTargetAtTime(0, ac.currentTime, 0.9);
+        osc.connect(gain);
+        gain.connect(destination);
+        schedulePing();
+      }, (nextSecond + hqs.sound * 100) - now);
+    }
+
+    for (const track of destination.stream.getTracks())
+      this.mediaStream.addTrack(track);
+    schedulePing();
+  }
+
   getOrCreatePeer(id) {
     if (id in this.peers)
       return this.peers[id];
@@ -352,9 +395,13 @@ class RTCTestClient {
       case 'mapTrack':
         const { mid, id } = body;
         const peer = this.peers[id];
-        peer.clearMedia();
+        // peer.clearMedia();
         peer.mids.push(mid);
         this.rtcPeer.setMidObserver(mid, track => {
+          track.addEventListener('ended', e => {
+            peer.mids.splice(peer.mids.indexOf(mid), 1);
+            peer.removeTrack(track);
+          });
           peer.addTrack(track);
         });
         break;
