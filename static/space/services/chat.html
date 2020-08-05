@@ -7,11 +7,13 @@ import Service from '../js/Service.js';
 class Chat {
   constructor() {
     this.observers = new Observers();
+    this.messages = [];
   }
 
   setWs(ws) {
     this.ws = ws;
     ws.observe('chat', message => {
+      this.messages.push(message);
       this.observers.fire('message', message);
     })
   }
@@ -31,14 +33,22 @@ class ChatClient {
   }
 
   observe(key, cb) {
+    console.log('client observe chat', key, cb, chat.messages);
+    if (key == 'message') {
+      for (const message of chat.messages)
+        cb(message);
+    }
     return chat.observers.add(key, this.context, cb);
+    console.log('client observe chat', key, cb, chat.messages);
   }
 
   addMessage(message) {
-    chat.observers.fire('message', {
+    const selfMessage = {
       from: chat.whoami,
       message
-    });
+    };
+    chat.observers.fire('message', selfMessage);
+    chat.messages.push(selfMessage);
 
     chat.ws.send({
       type: 'chat',
