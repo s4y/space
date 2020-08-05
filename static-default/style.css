@@ -62,6 +62,5 @@ html, body, #room {
   width: 100vw;
   height: 100vh;
   margin: 0;
-  pointer-events: none;
   border: none;
 }
