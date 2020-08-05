@@ -51,7 +51,7 @@ export default class PlayerControls {
     Service.get('knobs', knobs => {
       knobs.observe('physics.jumpStrength', jumpStrength => {
         this.jumpStrength = jumpStrength;
-      });
+      }, 1);
     });
 
     const moveListener = e => {
