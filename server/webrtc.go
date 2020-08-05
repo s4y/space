@@ -250,7 +250,7 @@ func (p *WebRTCPartyLinePeer) addTrack(peer *WebRTCPartyLinePeer, track *webrtc.
 		case <-peer.ctx.Done():
 			p.mutex.Lock()
 			defer p.mutex.Unlock()
-			if err := p.peerConnection.RemoveTrack(sender); err != nil {
+			if err := sender.Stop(); err != nil {
 				fmt.Println("error removing old track: ", err)
 			}
 			if err := p.sendOffer(); err != nil {
