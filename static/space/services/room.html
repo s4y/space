@@ -150,26 +150,6 @@ class Room {
       this.observers.fire('updateMedia', id, guest);
     });
   }
-  updateMidMapping(mapping) {
-    for (const id in mapping) {
-      const mids = mapping[id];
-      const guest = this.guests[id];
-      if (!guest)
-        continue;
-      guest.mids = mids;
-      for (const mid of mids) {
-        this.rtcPeer.setMidObserver(mid, track => {
-          if (guest.mids != mids) {
-            console.log('old observer, bail');
-            return;
-          }
-          guest[track.kind == 'video' ? 'videoTrack' : 'audioTrack'] = track;
-          this.observers.fire('updateMedia', id, guest);
-        });
-      }
-    }
-  }
-
   handleRTC(from, message) {
     if (this.rtcPeer)
       this.rtcPeer.receiveFromPeer(message);
