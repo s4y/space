@@ -11,6 +11,7 @@ body {
   font-size: 14px;
 
   margin: 0;
+  pointer-events: none;
 }
 
 #videoMutedEl, #audioMutedEl {
@@ -106,7 +107,7 @@ body {
   border: 1px solid #fff;
   border-radius: 24px;
 
-  pointer-events: all;
+  pointer-events: auto;
 }
 
 #newMessage > input {
@@ -190,7 +191,7 @@ topDoc.addEventListener('pointerlockchange', e => {
     document.documentElement.classList.add('pointerLocked');
   else {
     document.documentElement.classList.remove('pointerLocked');
-    document.querySelector('#chatInput>input').focus();
+    document.querySelector('#chat input').focus();
   }
 });
 
