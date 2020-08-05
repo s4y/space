@@ -346,16 +346,21 @@ func main() {
 				}
 			case "chat":
 				var chatMessage struct {
-					Message json.RawMessage `json:"message"`
+					Message string `json:"message"`
 				}
+
 				err := json.Unmarshal(msg.Body, &chatMessage)
 				if err != nil {
 					fmt.Println(err)
 					break
 				}
-				if err := rtcPeer.HandleMessage(chatMessage.Message); err != nil {
-					fmt.Println("malformed chat message from", seq, string(chatMessage.Message), err)
-				}
+
+				outboundMessage := MakeClientMessage("chat", struct {
+					From    uint32      `json:"from"`
+					Message interface{} `json:"message"`
+				}{seq, chatMessage.Message})
+
+				world.BroadcastFrom(seq, outboundMessage)
 			default:
 				fmt.Println("unknown message:", msg)
 			}
