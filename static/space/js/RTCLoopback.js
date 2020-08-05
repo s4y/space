@@ -1,3 +1,6 @@
+const tweakSDP = sdp =>
+  sdp.replace('useinbandfec=1', 'useinbandfec=1; stereo=1');
+
 export default class RTCLoopback {
   constructor(cb) {
     const pc1 = this.pc1 = new RTCPeerConnection();
@@ -24,8 +27,11 @@ export default class RTCLoopback {
         .then(offer => pc1.setLocalDescription(offer))
         .then(() => pc2.setRemoteDescription(pc1.localDescription))
         .then(() => pc2.createAnswer())
-        .then(answer => pc2.setLocalDescription(answer))
-        .then(() => pc1.setRemoteDescription(pc2.localDescription));
+        .then(answer => {
+          answer.sdp = tweakSDP(answer.sdp);
+          return pc2.setLocalDescription(answer);
+        })
+        .then(() => pc1.setRemoteDescription(pc2.localDescription))
       ;
     };
   }
