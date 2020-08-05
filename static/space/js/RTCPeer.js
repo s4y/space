@@ -74,6 +74,7 @@ export default class RTCPeer {
         .catch(e => {
           console.log(e);
           this.init();
+          this.onerror && this.onerror();
         });
     } else if (name == 'icecandidate') {
       pc.addIceCandidate(value).catch(e => {

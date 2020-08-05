@@ -181,6 +181,9 @@ class Room {
         });
       },
       mediaStream: this.mediaStream,
+      onerror() {
+        this.ws.bounce();
+      }
     });
   }
   disconnectRTC() {

@@ -65,6 +65,9 @@ class WsClient {
   send(message) {
     return ws.send(message);
   }
+  bounce() {
+      ws.open && ws.connect();
+  }
 }
 
 Service.register('ws', context => new WsClient(context));
