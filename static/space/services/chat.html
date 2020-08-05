@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<script type=module>
+
+import Observers from '../js/Observers.js';
+import Service from '../js/Service.js';
+
+class Chat {
+  constructor() {
+    this.observers = new Observers();
+  }
+
+  setWs(ws) {
+    this.ws = ws;
+    ws.observe('chat', message => {
+      this.observers.fire('message', message);
+    })
+  }
+
+  setSelf(whoami) {
+    this.whoami = whoami;
+  }
+}
+
+const chat = new Chat();
+Service.get('ws', ws => chat.setWs(ws));
+Service.get('room', room => chat.setSelf(room.whoami));
+
+class ChatClient {
+  constructor(context) {
+    this.context = context;
+  }
+
+  observe(key, cb) {
+    return chat.observers.add(key, this.context, cb);
+  }
+
+  addMessage(message) {
+    chat.observers.fire('message', {
+      from: chat.whoami,
+      message
+    });
+
+    chat.ws.send({
+      type: 'chat',
+      body: {
+        message
+      }
+    });
+  }
+}
+
+const chatClientCb = context => new ChatClient(context);
+Service.register('chat', chatClientCb);
+
+</script>

@@ -1,9 +1,17 @@
 <!DOCTYPE html>
 <style>
 
+html,
+body {
+  height: 100%;
+}
+
 body {
   font-family: system-ui;
   font-size: 14px;
+
+  margin: 0;
+  pointer-events: none;
 }
 
 #videoMutedEl, #audioMutedEl {
@@ -20,10 +28,150 @@ body {
   transform: scale(-1, 1);
 }
 
+#chat {
+  width: 100%;
+  max-width: 432px;
+  height: 100%;
+
+  display: flex;
+  flex-direction: column;
+
+  position: relative;
+  overflow: hidden;
+}
+
+#messages {
+  list-style-type: none;
+
+  color: #fff;
+  font-family: Helvetica, Arial, sans-serif;
+
+  margin: 0;
+  padding: 0;
+
+  position: relative;
+  overflow: scroll;
+
+  flex: 0 1 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.message {
+  border-radius: 18px;
+  box-sizing: border-box;
+
+  min-width: 36px;
+  max-width: 70%;
+
+  margin: 4px 16px;
+  padding: 10px 12px;
+
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+
+  line-height: 1;
+
+  position: absolute;
+}
+
+.message > p {
+  margin: 0;
+  word-wrap: break-word;
+}
+
+.self {
+  align-self: flex-end;
+}
+
+.other {
+  align-self: flex-start;
+}
+
+#sentinel {
+  position: absolute;
+  width: 100%;
+  height: 1px;
+}
+
+#newMessage {
+  margin: 8px;
+  padding: 3px;
+
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #fff;
+  border-radius: 24px;
+
+  pointer-events: auto;
+}
+
+#newMessage > input {
+  border: none;
+  border-radius: 10px 0 0 10px;
+  font-size: 24px;
+
+  color: #fff;
+  background: transparent;
+
+  margin-right: 4px;
+  padding: 0 10px;
+
+  flex: 1 1 auto;
+
+  outline: 0;
+}
+
+#newMessage > button {
+  border: none;
+  border-radius: 20px;
+  font-size: 28px;
+
+  color: #444;
+  background: #fff;
+
+  width: 40px;
+  height: 40px;
+
+  flex: 0 0 auto;
+}
+
+#newMessage > button:disabled {
+  opacity: 0.35;
+}
+
+/* downplay the chat interface when it's not focused */
+#chat { opacity: 0.35; }
+#messages {
+  pointer-events: none;
+  visibility: hidden;
+}
+
+/* make it work when it's children are focused */
+#chat:focus-within { opacity: 1; }
+#chat:focus-within #messages {
+  /* pointer-events: all; */
+  visibility: visible;
+}
+
 </style>
+
 <div id=videoMutedEl style="display: none">Camera off</div>
 <div id=audioMutedEl style="display: none">Microphone off</div>
 <video muted id=preview playsinline></video>
+
+<div id=chat>
+  <ul id=messages><li id=sentinel></li></ul>
+  <form action=# id=newMessage autocomplete=off>
+    <input type=text name=message>
+    <button type=submit name=send disabled>↑</button>
+  </form>
+</div>
+
 <script type=module>
 
 import Service from '/space/js/Service.js'
@@ -43,13 +191,15 @@ topDoc.addEventListener('pointerlockchange', e => {
     document.documentElement.classList.add('pointerLocked');
   else {
     document.documentElement.classList.remove('pointerLocked');
-    document.querySelector('#chatInput>input').focus();
+    document.querySelector('#chat input').focus();
   }
 });
 
 Service.get('docent', docent => {});
 
+let whoami;
 Service.get('room', room => {
+  whoami = room.whoami;
   player = controls.player = room.player;
 });
 
@@ -57,12 +207,74 @@ Service.get('userMedia', userMedia => {
   userMedia.observe('videoMuted', videoMuted => {
     videoMutedEl.style.display = videoMuted ? '' : 'none';
   });
+
   userMedia.observe('audioMuted', audioMuted => {
     audioMutedEl.style.display = audioMuted ? '' : 'none';
   });
+
   userMedia.observe('stream', stream => {
     preview.srcObject = stream;
     preview.play();
+  });
+});
+
+/**
+ * helpers for measuring stuff
+ */
+const { getComputedStyle: getStyle } = window;
+
+// (el: HTMLElement) => number
+const outerTop = (el) => {
+  const { marginTop } = getStyle(el);
+  return el.offsetTop - parseInt(marginTop, 10);
+};
+
+// (el: HTMLElement) => number
+const outerHeight = (el) => {
+  const { marginTop, height, marginBottom } = getStyle(el);
+  return [marginTop, height, marginBottom].reduce(
+    (acc, px) => acc + parseInt(px, 10),
+    0,
+  );
+};
+
+/**
+ * view state for the chat interface
+ */
+let messagesHeight = messages.clientHeight;
+
+// init the sentinel at the "bottom" of the messages content box
+sentinel.style.top = `${messagesHeight}px`;
+
+Service.get('chat', chat => {
+  chat.observe('message', ({from, message}) => {
+    const li = document.createElement('li');
+    li.classList.add('message', from === chat.whoami ? 'self' : 'other');
+
+    const p = document.createElement('p');
+    p.textContent = message;
+    li.appendChild(p);
+
+    messages.insertBefore(li, sentinel);
+
+    // set the new message to the current "bottom" of the message content box
+    li.style.top = `${messagesHeight + outerTop(li)}px`;
+    messagesHeight += outerHeight(li);
+
+    // update the sentinel
+    sentinel.style.top = `${messagesHeight}px`;
+    sentinel.scrollIntoView({ behavior: 'smooth' });
+  });
+
+  newMessage.addEventListener('submit', (event) => {
+    event.preventDefault();
+    chat.addMessage(newMessage.message.value);
+
+    newMessage.message.value = '';
+  });
+
+  newMessage.message.addEventListener('input', event => {
+    newMessage.send.disabled = event.target.value === '';
   });
 });
 
