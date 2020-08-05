@@ -153,7 +153,7 @@ body {
 /* make it work when it's children are focused */
 #chat:focus-within { opacity: 1; }
 #chat:focus-within #messages {
-  pointer-events: all;
+  /* pointer-events: all; */
   visibility: visible;
 }
 
@@ -196,7 +196,9 @@ topDoc.addEventListener('pointerlockchange', e => {
 
 Service.get('docent', docent => {});
 
+let whoami;
 Service.get('room', room => {
+  whoami = room.whoami;
   player = controls.player = room.player;
 });
 
@@ -234,12 +236,6 @@ const outerHeight = (el) => {
     0,
   );
 };
-
-/**
- * classic self vs. other setup here
- */
-let whoami;
-Service.get('room', room => whoami = room.whoami);
 
 /**
  * view state for the chat interface
