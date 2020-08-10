@@ -210,40 +210,6 @@ const buildGlRoom = (canvas, config) => {
   floor.rotation.order = 'YXZ';
   scene.add(floor);
 
-  //GLTF LOADER
-  let mixer;
-  let loader = new GLTFLoader();
-  loader.load('/models/Duck/Duck.gltf', function(gltf){
-    const duck = gltf.scene.children[0];
-    duck.scale.set(0.2,0.2,0.2);
-    duck.position.y = 1.5;
-
-    duck.rotation.y = -Math.PI;
-    scene.add(gltf.scene);
-    // animate();
-
-    mixer = new THREE.AnimationMixer( duck );
-    gltf.animations.forEach(( clip ) => {
-      mixer.clipAction(clip).play();
-    });
-
-  });
-
-  /*let mixer;
-  let loader = new THREE.GLTFLoader();
-  loader.load( '/models/Duck/Duck.gltf', ( gltf ) => {
-    const model = gltf.scene;
-    model.scale.set(5.0,5.0,5.0);
-    scene.add(model);
-    /*
-    mixer = new THREE.AnimationMixer( model );
-    gltf.animations.forEach(( clip ) => {
-      mixer.clipAction(clip).play();
-    });
-
-  });
-  */
-
   const resize = () => {
     renderer.setSize(
       canvas.clientWidth * devicePixelRatio,
