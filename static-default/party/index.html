@@ -160,12 +160,6 @@ const buildGlRoom = (canvas, config) => {
       canvas.clientHeight * devicePixelRatio, false);
     camera.aspect = canvas.width / canvas.height;
     camera.updateProjectionMatrix();
-
-    // // https://stackoverflow.com/questions/13350875/three-js-width-of-view/13351534#13351534
-    // var vFOV = THREE.MathUtils.degToRad( camera.fov );
-    // var height = 2 * Math.tan( vFOV / 2 ) * sky.position.z;
-    // var width = height * camera.aspect;
-    // sky.geometry = new THREE.PlaneGeometry(-width, -height);
   };
   window.addEventListener('resize', resize);
 
