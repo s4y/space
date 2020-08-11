@@ -271,6 +271,9 @@ class RTCTestClient {
           body: { to: 0, message },
         }));
       },
+      onerror: () => {
+        this.ws.close();
+      },
       mediaStream: this.mediaStream,
     });
     // rtcPeer.setMediaStream(this.mediaStream);
