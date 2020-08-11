@@ -57,6 +57,7 @@ const createSky = () => {
 const buildGlRoom = (canvas, config) => {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(60);
+  camera.far = 10000;
   camera.rotation.order = 'YXZ';
 
   const listener = new THREE.AudioListener();
