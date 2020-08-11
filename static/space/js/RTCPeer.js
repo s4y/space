@@ -32,6 +32,7 @@ export default class RTCPeer {
 
     for (const track of this.mediaStream.getTracks())
       this.pc.addTrack(track, this.mediaStream);
+    pc.createDataChannel({});
   }
 
   setMidObserver(mid, observer) {
