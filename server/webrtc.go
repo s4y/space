@@ -97,16 +97,18 @@ func (pl *WebRTCPartyLine) AddPeer(ctx context.Context, p *WebRTCPartyLinePeer) 
 		return err
 	}
 
-	for _, peer := range p.partyLine.peers {
-		peer.mutex.RLock()
-		for _, track := range peer.tracks {
-			err = p.addTrack(peer, track.track, track.pliChan)
-			if err != nil {
-				fmt.Println("err tracking up: ", err)
+	go func() {
+		for _, peer := range p.partyLine.peers {
+			peer.mutex.RLock()
+			for _, track := range peer.tracks {
+				err = p.addTrack(peer, track.track, track.pliChan)
+				if err != nil {
+					fmt.Println("err tracking up: ", err)
+				}
 			}
+			peer.mutex.RUnlock()
 		}
-		peer.mutex.RUnlock()
-	}
+	}()
 
 	p.peerConnection.OnICECandidate(func(i *webrtc.ICECandidate) {
 		if i != nil {
@@ -178,15 +180,15 @@ func (pl *WebRTCPartyLine) AddPeer(ctx context.Context, p *WebRTCPartyLinePeer) 
 			if peer.peerConnection == nil {
 				continue
 			}
-			peer.mutex.Lock()
-			err = peer.addTrack(p, localTrack, pliChan)
-			if err == nil {
-				err = peer.sendOffer()
-			}
-			peer.mutex.Unlock()
-			if err != nil {
-				fmt.Println("err tracking upp: ", err)
-			}
+			go func(peer *WebRTCPartyLinePeer) {
+				peer.mutex.Lock()
+				defer peer.mutex.Unlock()
+				if err := peer.addTrack(p, localTrack, pliChan); err != nil {
+					fmt.Println("err tracking upp: ", err)
+				} else if err := peer.sendOffer(); err != nil {
+					fmt.Println("err adding track: ", err)
+				}
+			}(peer)
 		}
 		p.partyLine.peerListMutex.RUnlock()
 
@@ -208,13 +210,13 @@ func (pl *WebRTCPartyLine) RemovePeer(p *WebRTCPartyLinePeer) {
 		p.peerConnection.Close()
 	}
 	pl.peerListMutex.Lock()
+	defer pl.peerListMutex.Unlock()
 	for i, peer := range pl.peers {
 		if peer == p {
 			pl.peers = append(pl.peers[:i], pl.peers[i+1:]...)
 			break
 		}
 	}
-	pl.peerListMutex.Unlock()
 }
 
 func (p *WebRTCPartyLinePeer) sendOffer() error {
