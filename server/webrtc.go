@@ -97,6 +97,8 @@ func (pl *WebRTCPartyLine) AddPeer(ctx context.Context, p *WebRTCPartyLinePeer) 
 		return err
 	}
 
+	//p.peerConnection.CreateDataChannel("", nil)
+
 	go func() {
 		for _, peer := range p.partyLine.peers {
 			peer.mutex.RLock()
