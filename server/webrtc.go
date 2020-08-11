@@ -103,7 +103,9 @@ func (pl *WebRTCPartyLine) AddPeer(ctx context.Context, p *WebRTCPartyLinePeer) 
 		for _, peer := range p.partyLine.peers {
 			peer.mutex.RLock()
 			for _, track := range peer.tracks {
+				p.mutex.Lock()
 				err = p.addTrack(peer, track.track, track.pliChan)
+				p.mutex.Unlock()
 				if err != nil {
 					fmt.Println("err tracking up: ", err)
 				}
