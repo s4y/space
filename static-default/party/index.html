@@ -144,7 +144,7 @@ const buildGlRoom = (canvas, config) => {
   }
 
   const floor = new THREE.Mesh(
-    new THREE.PlaneBufferGeometry(2000, 2000),
+    new THREE.CircleBufferGeometry(100000),
     new THREE.MeshPhongMaterial( {
       color: 0x222222,
       emissive: 0x221122,
@@ -367,8 +367,6 @@ const buildGlRoom = (canvas, config) => {
     camera.position.y = 6 + position[2];
     camera.rotation.y = -look[0];
     camera.rotation.x = -look[1];
-
-    floor.rotation.y = camera.rotation.y;
 
     if (musicAnalyser)
       musicAnalyser.getByteFrequencyData(byteFreqData);
