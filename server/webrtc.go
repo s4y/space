@@ -16,7 +16,7 @@ import (
 // Based on https://github.com/pion/webrtc/tree/master/examples/broadcast
 
 const (
-	rtcpPLIInterval = time.Second * 5
+	rtcpPLIInterval = time.Second * 1
 )
 
 type WebRTCPartyLine struct {
