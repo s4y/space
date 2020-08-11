@@ -190,6 +190,7 @@ class RTCTestPeer {
     this.videoEl = document.createElement('video');
     this.videoEl.autoplay = true;
     this.videoEl.muted = true;
+    this.videoEl.playsInline = true;
     // this.videoEl.controls = true;
     this.videoEl.srcObject = new MediaStream([]);
   }
