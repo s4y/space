@@ -9,6 +9,7 @@
 
 import * as THREE from '/deps/three/build/three.module.js'
 import { GLTFLoader } from '/deps/three/examples/jsm/loaders/GLTFLoader.js'
+import { BufferGeometryUtils } from '/deps/three/examples/jsm/utils/BufferGeometryUtils.js'
 import Service from '/space/js/Service.js'
 import RTCPeer from '/space/js/RTCPeer.js'
 import RTCLoopback from '/space/js/RTCLoopback.js'
@@ -22,91 +23,35 @@ const hqs = location.hash
   .map(c => c.split('=').map(decodeURIComponent))
   .reduce((params, [k, v]) => (params[k] = v, params), {});
 
+// Based on code by Adam Quinn (https://github.com/agquinn01)
 const createSky = () => {
-  const skyMaterial = new THREE.ShaderMaterial( {
-    side: THREE.BackSide,
-    uniforms: {
-      t: { value: 0 },
-    },
-    vertexShader: `
-      varying vec2 p;
-
-      void main() {
-        p = uv*2.-1.;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
-      }
-    `,
-
-    fragmentShader: `
-      #include <common>
-
-      // https://thebookofshaders.com/10/
-      float random( vec2 p )
-      {
-        vec2 K1 = vec2(
-        23.14069263277926, // e^pi (Gelfond's constant)
-        2.665144142690225 // 2^sqrt(2) (Gelfond–Schneider constant)
+  const sky = new THREE.Group();
+  for (let i = 0; i < 8; i++) {
+    const opacity = Math.random() * 0.75 + 0.25;
+    const starGeometries = [];
+    for (let j = 0; j < 200; j++){
+      const starGeometry = new THREE.SphereBufferGeometry(Math.random() * 1.5 + 0.5);
+      const angle = Math.random() * Math.PI * 2;
+      const distanceFromCenter = Math.random() * 2000;
+      starGeometry.translate(
+        Math.cos(angle) * distanceFromCenter,
+        Math.random() * 107,
+        Math.sin(angle) * distanceFromCenter,
       );
-        return fract( cos( dot(p,K1) ) * 12345.6789 );
-      }
+      starGeometries.push(starGeometry);
+    }
 
-      varying vec2 p;
-      uniform float t;
-      void main() {
-        vec2 pp = p;
-        // pp.x /= sin(pp.y);
-        // pp += (look * vec3(1, 1, 1) * 2. - 0.5).xy;
-        // vec2 pp = vec2(atan(p.y, p.x), distance(p, vec2(0.0)));
-        // p.x = atan(p.y, p.x);
-        // p.y = op.y;
-        // p.y = length(op);
+    const starMaterial = new THREE.MeshBasicMaterial( {color: 0xffff00, transparent: true } );
+    const starGroup = new THREE.Mesh(BufferGeometryUtils.mergeBufferGeometries(starGeometries), starMaterial);
 
-        // float lat = Ip.y/2.+.5) * PI;
-        // float lon = Ip.x/2.+.5) * PI * 2.;
-        // vec3 p3 = vec3(sin(lat)*cos(lon), sin(lat)*sin(lon), cos(lat));
+    starGroup.onBeforeRender = () => {
+      starMaterial.opacity = (opacity + motion * (Math.sin(performance.now() / 1000 + i / 2.) * 0.5));
+    };
 
-
-        // float lon = (p.x/2.+.5)*2.*PI;
-        // float lat = (p.y/2.+.5)*2.*PI;
-        // vec3 p3 = vec3(cos(lon)*cos(lat), sin(lon)*cos(lat), sin(lat));
-
-        vec2 ll = vec2(
-          (p.x / 2. + 0.5) * PI,
-          (p.y / 2. + 0.5) * 2. * PI
-          // cos((p.x/2.+.5)*PI*2.)*(p.y/2.+.5),
-          // sin((p.x/2.+.5)*PI*2.)*(p.y/2.+.5)
-          );
-
-        vec3 p3 = vec3(sin(ll.x) * cos(ll.y), sin(ll.x) * sin(ll.y), cos(ll.x));;
-        // p3 *= 2.;
-
-        p3.z += t / 100.;
-
-        pp = p3.yz*2.-1.;
-        // pp.x /= 4.;
-        // pp = mod(pp, 0.5);
-
-        vec2 nearP = pp - mod(pp, 0.1);
-        gl_FragColor = vec4(clamp(step(random(nearP), 0.5) * (1. - distance(pp, nearP + 0.05) * 200.), 0., 1.));
-        gl_FragColor += max(gl_FragColor, clamp(1. - ll.y - 0.5, 0., 1.));
-        // gl_FragColor = vec4(abs(p3), 1.);
-        // gl_FragColor = vec4(p3.yz, 0., 1.);
-        // gl_FragColor = vec4(pp, 0., 1.);
-        // gl_FragColor = vec4(pp, 0., 1.);
-      }
-    `,
-  });
-
-  const sky = new THREE.Mesh(
-    new THREE.SphereBufferGeometry(1000, 32, 32, 0, 2 * Math.PI, 0, 0.5 * Math.PI),
-    skyMaterial);
-  sky.onBeforeRender = () => {
-    sky.material.uniforms.t.value = performance.now() / 1000;
-  };
-
-  return {
-    obj: sky,
-  };
+    sky.add(starGroup);
+  }
+  sky.position.y = 500;
+  return sky;
 };
 
 const buildGlRoom = (canvas, config) => {
@@ -170,8 +115,7 @@ const buildGlRoom = (canvas, config) => {
   const guests = {};
   let mediaStream = null;
 
-  const sky = createSky();
-  scene.add(sky.obj);
+  scene.add(createSky());
 
   const updateBalloons = [];
   const balloonGeometry = new THREE.IcosahedronBufferGeometry(5, 0);
@@ -424,8 +368,6 @@ const buildGlRoom = (canvas, config) => {
     camera.rotation.y = -look[0];
     camera.rotation.x = -look[1];
 
-    sky.obj.position.x = floor.position.x = camera.position.x;
-    sky.obj.position.z = floor.position.z = camera.position.z;
     floor.rotation.y = camera.rotation.y;
 
     if (musicAnalyser)
