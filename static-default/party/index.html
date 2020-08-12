@@ -281,10 +281,16 @@ const buildGlRoom = (canvas, config) => {
         const stream = tracks.length ? new MediaStream(tracks) : null;
         videoEl.srcObject = stream;
         gestureWrangler.playVideo(videoEl);
-        if (audioTrack)
-          posSound.setMediaStreamSource(stream);
-        else if (posSound.source)
+        if (audioTrack) {
+          try {
+            posSound.setMediaStreamSource(stream);
+          } catch (e) {
+            console.log(e);
+            videoEl.muted = false;
+          }
+        } else if (posSound.source) {
           posSound.disconnect();
+        }
     };
 
     const ret = (guests[id] = {
