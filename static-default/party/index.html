@@ -14,6 +14,8 @@ import Service from '/space/js/Service.js'
 import RTCPeer from '/space/js/RTCPeer.js'
 import RTCLoopback from '/space/js/RTCLoopback.js'
 
+THREE.AudioContext.setContext(window.top.globalAudioContext);
+
 Service.get('docent', docent => {});
 
 const hqs = location.hash
