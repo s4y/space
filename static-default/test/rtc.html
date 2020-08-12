@@ -81,7 +81,6 @@ window.hqs = location.hash
 </script>
 <script type=module>
 
-import * as THREE from '/deps/three/build/three.module.js'
 import RTCPeer from '/space/js/RTCPeer.js'
 
 class View {
@@ -280,45 +279,27 @@ class RTCTestClient {
   }
 
   createSource() {
-    const canvas = document.createElement('canvas');
-    this.canvas = canvas;
+    const canvas = this.canvas = document.createElement('canvas');
+    canvas.width = 320;
+    canvas.height = 240;
 
-    const scene = new THREE.Scene();
-    const cube = new THREE.Mesh(
-      new THREE.BoxBufferGeometry(1, 1, 1),
-      new THREE.MeshPhongMaterial({ color: 0xff00ff }));
-    cube.position.z = -5;
-    scene.add(cube);
+    const ctx = canvas.getContext('2d');
 
-    const light = new THREE.HemisphereLight(0xffffff, 0x222200, 1);
-    scene.add(light);
-
-    const camera = new THREE.PerspectiveCamera(25);
-    const renderer = new THREE.WebGLRenderer({
-      canvas,
-      alpha: false,
-      antialias: true,
-      powerPreference: 'low-power',
-    });
-    renderer.setClearColor(new THREE.Color().setHSL(0.5, 0.7, 0.5), 1);
-
-    renderer.setSize(320, 240, false);
-    camera.aspect = canvas.width / canvas.height;
-    camera.updateProjectionMatrix();
-
-    const schedule = () => {
-      this.animationFrame = requestAnimationFrame(draw);
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    const draw = () => {
+      const now = performance.now();
+      ctx.rotate(Math.PI / 100);
+      ctx.beginPath();
+      ctx.rect(-canvas.width / 4, -canvas.height / 4, canvas.width / 2, canvas.height/2);
+      ctx.fillStyle = `hsl(${now / 10 % 360}deg, 100%, 50%)`;
+      ctx.fill();
+      track.requestFrame();
     };
 
-    const draw = now => {
-      cube.rotation.x = now / 1000;
-      cube.rotation.y = now / 1000;
-      renderer.render(scene, camera);
-      schedule();
-    };
+    setInterval(draw, 1000/60);
 
-    schedule();
-    this.mediaStream = canvas.captureStream();
+    this.mediaStream = canvas.captureStream(0);
+    const track = this.mediaStream.getTracks()[0];
   }
 
   createAudioSource() {
