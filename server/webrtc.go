@@ -20,9 +20,8 @@ const (
 )
 
 type WebRTCPartyLine struct {
-	mediaEngine webrtc.MediaEngine
-	api         *webrtc.API
-	config      webrtc.Configuration
+	api    *webrtc.API
+	config webrtc.Configuration
 
 	peerListMutex sync.RWMutex
 	peers         []*WebRTCPartyLinePeer
@@ -62,9 +61,8 @@ func NewWebRTCPartyLine(configIn json.RawMessage) *WebRTCPartyLine {
 
 	api := webrtc.NewAPI(webrtc.WithMediaEngine(mediaEngine))
 	return &WebRTCPartyLine{
-		mediaEngine: mediaEngine,
-		api:         api,
-		config:      config,
+		api:    api,
+		config: config,
 	}
 }
 
@@ -79,7 +77,7 @@ func (pl *WebRTCPartyLine) AddPeer(ctx context.Context, p *WebRTCPartyLinePeer) 
 	p.ctx = ctx
 
 	var err error
-	p.peerConnection, err = webrtc.NewPeerConnection(p.partyLine.config)
+	p.peerConnection, err = p.partyLine.api.NewPeerConnection(p.partyLine.config)
 	if err != nil {
 		return err
 	}
