@@ -26,11 +26,7 @@ export default class PlayerControls {
         z += dir[1];
         y += dir[2];
       }
-      const accel = [
-        x * Math.cos(look[0]) + z * Math.sin(look[0]),
-        z * Math.cos(-look[0]) + x * Math.sin(-look[0]),
-        y,
-      ];
+      const accel = this.adjustAccelerationForLook(x, z, y);
       const mag = Math.sqrt(Math.pow(accel[0], 2) + Math.pow(accel[1], 2));
       this.acceleration[0] = accel[0] / mag || 0;
       this.acceleration[1] = accel[1] / mag || 0;
@@ -82,7 +78,7 @@ export default class PlayerControls {
       updateAcceleration();
     }
     window.addEventListener('mousedown', e => {
-      if (e.target != document.body)
+      if (e.target != document.body && !('clickThrough' in e.target.dataset))
         return;
       window.top.focus();
       e.preventDefault();
@@ -95,15 +91,17 @@ export default class PlayerControls {
       cancel();
     });
     document.body.addEventListener('touchstart', e => {
-      const { look } = this.player;
       e.preventDefault();
-      let lastX = e.touches[0].pageX;
-      let lastY = e.touches[0].pageY;
+      const { look } = this.player;
+      const touch = e.targetTouches[0];
+      let lastX = touch.pageX;
+      let lastY = touch.pageY;
       const touchListener = e => {
-        look[0] += ((lastX - e.touches[0].pageX) / document.body.clientWidth) * 1
-        look[1] += ((lastY - e.touches[0].pageY) / document.body.clientHeight) * 1;
-        lastX = e.touches[0].pageX;
-        lastY = e.touches[0].pageY;
+        const touch = e.targetTouches[0];
+        look[0] += ((lastX - touch.pageX) / document.body.clientWidth) * 1
+        look[1] += ((lastY - touch.pageY) / document.body.clientHeight) * 1;
+        lastX = touch.pageX;
+        lastY = touch.pageY;
       };
       document.body.addEventListener('touchmove', touchListener)
       document.body.addEventListener('touchend', e => {
@@ -120,6 +118,15 @@ export default class PlayerControls {
     });
     if (topDoc.pointerLockElement)
       topDoc.body.addEventListener('mousemove', moveListener);
+  }
+
+  adjustAccelerationForLook(x, z, y) {
+    const { look } = this.player;
+    return [
+      x * Math.cos(look[0]) + z * Math.sin(look[0]),
+      z * Math.cos(-look[0]) + x * Math.sin(-look[0]),
+      y,
+    ];
   }
 };
 

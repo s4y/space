@@ -30,9 +30,9 @@ body {
 #chat {
   position: absolute;
   bottom: 2em;
-  left: 2em;
-  top: 2em;
-  right: 0;
+  left: 1em;
+  top: 0;
+  width: calc(100% - 2em);
   max-width: 30em;
   color: white;
   display: flex;
@@ -44,9 +44,10 @@ body {
   padding: 0;
   margin: 0;
   overflow: auto;
+  pointer-events: none;
   flex: 1;
   display: flex;
-  flex-direction: column;
+  flex-direction: column-reverse;
   align-items: flex-start;
 }
 
@@ -73,11 +74,25 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: 0.75em;
   width: 100%;
+  box-sizing: border-box;
   padding: 0.5em;
 }
 
 #chatForm > input:focus {
   border-color: white;
+}
+
+#touchmove {
+  height: 25%;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 1em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.25em;
+  text-align: center;
+  padding: 1em;
 }
 
 </style>
@@ -86,8 +101,9 @@ body {
 <div id=audioMutedEl style="display: none">Microphone off</div>
 <video muted id=preview playsinline></video>
 <div id=chat>
-  <ul></ul>
+  <ul data-click-through></ul>
   <form id=chatForm><input name=message autocomplete=off></form>
+  <div id=touchmove style="display: none">Touch here to move.<br>Touch anywhere else to look around.</div>
 </div>
 <script type=module>
 
@@ -97,8 +113,34 @@ import PlayerControls from '/space/js/PlayerControls.js'
 let player;
 const controls = new PlayerControls();
 
+let touchAcceleration = [0, 0, 0];
+if ('ontouchstart' in window) {
+  touchmove.style.display = '';
+  let startX;
+  let startY;
+  touchmove.addEventListener('touchstart', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    startX = e.targetTouches[0].pageX;
+    startY = e.targetTouches[0].pageY;
+  });
+  touchmove.addEventListener('touchend', e => {
+    touchAcceleration = [0, 0];
+  });
+  touchmove.addEventListener('touchmove', e => {
+    const touch = e.targetTouches[0];
+    e.preventDefault();
+    e.stopPropagation();
+    touchAcceleration[0] = (startX - touch.pageX) * -0.01;
+    touchAcceleration[1] = (startY - touch.pageY) * 0.01;
+  });
+}
+
 requestAnimationFrame(function applyAcceleration() {
-  player && player.applyAcceleration(controls.acceleration);
+  if (player) {
+    player.applyAcceleration(controls.acceleration);
+    player.applyAcceleration(controls.adjustAccelerationForLook(...touchAcceleration));
+  };
   requestAnimationFrame(applyAcceleration);
 });
 
@@ -142,7 +184,7 @@ Service.get('chat', chat => {
     li.classList.add('message', from === chat.whoami ? 'self' : 'other');
     li.textContent = message;
 
-    messages.appendChild(li);
+    messages.insertBefore(li, messages.firstChild);
     li.scrollIntoView();
   });
 
