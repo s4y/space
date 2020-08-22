@@ -96,6 +96,7 @@ const buildGlRoom = (canvas, config) => {
     antialias: true,
     powerPreference: 'high-performance',
   });
+  renderer.setClearColor(new THREE.Color().setHSL(0.5, 0.7, 0.01), 1);
   renderer.physicallyCorrectLights = true;
 
   const hemiLight = new THREE.HemisphereLight( 0x7FBBFF, 0x34002D, 1 );
@@ -386,7 +387,6 @@ const buildGlRoom = (canvas, config) => {
 
     updateBalloons.forEach(f => f(now, byteFreqData));
 
-    renderer.setClearColor(new THREE.Color().setHSL(0.5, 0.7, 0.01), 1);
     renderer.render(scene, camera);
   };
 
