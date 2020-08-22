@@ -97,7 +97,7 @@ class Room {
     setTimeout(() => {
       this.needsUpdate = false;
       this.sendAndSaveStateIfChanged();
-    }, 0);
+    }, 16);
   }
   setWs(ws) {
     this.ws = ws;
