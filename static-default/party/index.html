@@ -109,7 +109,7 @@ const buildGlRoom = (canvas, config) => {
     { p: [0, 1, -10], power: 1000 },
     { p: [0, 7, 0], power: 2000 },
   ]) {
-    const light = new THREE.PointLight(0xffffff, 100);
+    const light = new THREE.PointLight(0xffffff, 100, 50);
     light.power = props.power;
     light.decay = 2;
     light.position.set(...props.p);
@@ -124,7 +124,7 @@ const buildGlRoom = (canvas, config) => {
   const updateBalloons = [];
   const balloonGeometry = new THREE.IcosahedronBufferGeometry(5, 0);
   for (let i = 0; i < 10; i++) {
-    const rowLight = new THREE.PointLight(0xffffff, 100);
+    const rowLight = new THREE.PointLight(0xffffff, 100, 50);
     rowLight.power = 2000;
     rowLight.decay = 2;
     rowLight.position.y = -10;
