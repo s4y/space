@@ -50,6 +50,9 @@ class Player {
     velocity[2] = apply(velocity[2], acceleration[2] * 0.05, -2);
   }
   stepPhysics() {
+    const now = performance.now();
+    const delta = Math.min(500, this.lastPhysicsStep ? now - this.lastPhysicsStep : 0) * (60/1000);
+    this.lastPhysicsStep = now;
     const { position, velocity } = this;
     if (position[2] <= 0) {
       velocity[0] *= 0.9;
@@ -59,9 +62,9 @@ class Player {
     } else {
       velocity[2] -= 0.01;
     }
-    position[0] += velocity[0];
-    position[1] += velocity[1];
-    position[2] += velocity[2];
+    position[0] += velocity[0] * delta;
+    position[1] += velocity[1] * delta;
+    position[2] += velocity[2] * delta;
     this.onchange();
   }
 }
