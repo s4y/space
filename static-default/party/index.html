@@ -313,6 +313,15 @@ const buildGlRoom = (canvas, config) => {
     ret.videoTrack = remoteGuest.videoTrack;
     ret.audioTrack = remoteGuest.audioTrack;
 
+    if (joinSound) {
+      const joinSource = window.top.globalAudioContext.createBufferSource();
+      joinSource.buffer = joinSound;
+      joinSource.connect(posSound.getOutput());
+      setTimeout(() => {
+        joinSource.start();
+      }, 1000);
+    }
+
     return ret;
   };
 
@@ -342,6 +351,14 @@ const buildGlRoom = (canvas, config) => {
     const guest = guests[id];
     if (!guest)
       return;
+
+    if (partSound) {
+      const partSource = window.top.globalAudioContext.createBufferSource();
+      partSource.buffer = partSound;
+      partSource.connect(guest.posSound.getOutput());
+      partSource.start();
+    }
+
     scene.remove(guest.group);
     delete guests[id];
   };
@@ -482,6 +499,22 @@ let musicAnalyser;
 let musicReactivity = 0;
 let motion = 0;
 
+let joinSound;
+let partSound;
+
+fetch('/sounds/join.mp3')
+  .then(r => r.arrayBuffer())
+  .then(ab => window.top.globalAudioContext.decodeAudioData(ab))
+  .then(buf => {
+    joinSound = buf;
+  });
+
+fetch('/sounds/part.mp3')
+  .then(r => r.arrayBuffer())
+  .then(ab => window.top.globalAudioContext.decodeAudioData(ab))
+  .then(buf => {
+    partSound = buf;
+  });
 
 const start = () => {
   Service.get('music', music => {
