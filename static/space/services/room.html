@@ -74,6 +74,7 @@ class Room {
     this.observers = new Observers();
     this.mediaStream = new MediaStream();
     this.guests = {};
+    this.isJoined = false;
 
     const onchange = () => {
       this.setNeedsUpdate();
@@ -89,6 +90,13 @@ class Room {
     }
     if (!this.player)
       this.player = new Player(onchange);
+  }
+  join() {
+    if (this.isJoined)
+      return;
+    this.isJoined = true;
+    Service.get('ws', ws => this.setWs(ws));
+
   }
   setNeedsUpdate() {
     if (this.needsUpdate)
@@ -232,8 +240,6 @@ Service.get('userMedia', userMedia => {
   });
 });
 
-Service.get('ws', ws => room.setWs(ws));
-
 Service.get('docent', docent => {
   docent.observe('reconnect', what => {
     if (what == 'webrtc')
@@ -244,6 +250,9 @@ Service.get('docent', docent => {
 class RoomClient {
   constructor(context) {
     this.context = context;
+  }
+  join() {
+    return room.join();
   }
   observe(key, cb) {
     return room.observers.add(key, this.context, cb);

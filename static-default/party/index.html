@@ -466,6 +466,7 @@ const buildRoom = (el, config) => {
   Service.get('room', room => {
     player = room.player;
 
+    room.join();
     room.observe('update', (id, state) => {
       if (state)
         glRoom.updateGuest(id, state);
