@@ -31,8 +31,9 @@ type Vec2 [2]float64
 type Vec3 [3]float64
 
 type GuestState struct {
-	Position Vec3 `json:"position"`
-	Look     Vec2 `json:"look"`
+	Position Vec3   `json:"position"`
+	Look     Vec2   `json:"look"`
+	Role     string `json:"role"`
 }
 
 type Guest struct {
