@@ -1,9 +1,7 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -15,171 +13,10 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/s4y/reserve"
+	"github.com/s4y/space/world"
 )
 
-type ClientMessage struct {
-	Type string          `json:"type"`
-	Body json.RawMessage `json:"body"`
-}
-
-func MakeClientMessage(t string, message interface{}) ClientMessage {
-	body, _ := json.Marshal(message)
-	return ClientMessage{t, body}
-}
-
-type Vec2 [2]float64
-type Vec3 [3]float64
-
-type GuestState struct {
-	Position Vec3   `json:"position"`
-	Look     Vec2   `json:"look"`
-	Role     string `json:"role"`
-}
-
-type Guest struct {
-	GuestState
-	JoinTime int `json:"joinTime"`
-	read     chan interface{}
-	write    chan interface{}
-	ctx      context.Context
-	cancel   context.CancelFunc
-}
-
-func MakeGuest(ctx context.Context, conn *websocket.Conn) *Guest {
-	childCtx, cancel := context.WithCancel(ctx)
-	guest := &Guest{
-		read:   make(chan interface{}),
-		write:  make(chan interface{}, 100),
-		ctx:    childCtx,
-		cancel: cancel,
-	}
-
-	go func() {
-		for msg := range guest.read {
-			conn.WriteJSON(msg)
-		}
-	}()
-
-	go func() {
-		for msg := range guest.write {
-			conn.WriteJSON(msg)
-		}
-	}()
-
-	go func() {
-		<-childCtx.Done()
-		conn.Close()
-		close(guest.read)
-		// close(guest.write)
-	}()
-
-	return guest
-}
-
-func (g *Guest) Read(msg interface{}) (interface{}, error) {
-	if msg, ok := <-g.read; ok {
-		return msg, nil
-	} else {
-		return nil, errors.New("read from closed websocket")
-	}
-}
-
-func (g *Guest) Write(msg interface{}) error {
-	select {
-	case <-g.ctx.Done():
-		return errors.New("write to closed websocket")
-	case g.write <- msg:
-		return nil
-	default:
-		g.cancel()
-		return errors.New(fmt.Sprint("full WebSocket, dropping connection."))
-	}
-}
-
-type World struct {
-	mutex  sync.Mutex
-	seq    uint32
-	Guests map[uint32]*Guest `json:"guests"`
-}
-
-func NewWorld() World {
-	return World{
-		Guests: map[uint32]*Guest{},
-	}
-}
-
-func MakeGuestUpdateMessage(id uint32, state Guest) interface{} {
-	return MakeClientMessage("guestUpdate", struct {
-		Id    uint32 `json:"id"`
-		State Guest  `json:"state"`
-	}{id, state})
-}
-
-func (w *World) broadcast(m interface{}, skip uint32) {
-	for k, v := range w.Guests {
-		if k == skip {
-			continue
-		}
-		v.Write(m)
-	}
-}
-
-func (w *World) join(seq uint32, g *Guest) {
-	g.Write(MakeClientMessage("hello", struct {
-		Seq uint32 `json:"seq"`
-	}{seq}))
-
-	for k, v := range w.Guests {
-		if v == g {
-			continue
-		}
-		g.Write(MakeGuestUpdateMessage(k, *v))
-	}
-}
-
-func (w *World) AddGuest(ctx context.Context, g *Guest) uint32 {
-	w.mutex.Lock()
-	defer w.mutex.Unlock()
-	w.seq += 1
-	seq := w.seq
-	w.Guests[seq] = g
-	w.join(seq, g)
-	go func() {
-		<-ctx.Done()
-		w.RemoveGuest(seq)
-	}()
-	return seq
-}
-
-func (w *World) Rejoin(seq uint32) {
-	w.mutex.Lock()
-	defer w.mutex.Unlock()
-	w.join(seq, w.Guests[seq])
-}
-
-func (w *World) BroadcastFrom(seq uint32, message interface{}) {
-	w.mutex.Lock()
-	defer w.mutex.Unlock()
-	w.broadcast(message, seq)
-}
-
-func (w *World) UpdateGuest(seq uint32) {
-	w.mutex.Lock()
-	defer w.mutex.Unlock()
-	g := w.Guests[seq]
-	w.broadcast(MakeGuestUpdateMessage(seq, *g), seq)
-}
-
-func (w *World) RemoveGuest(seq uint32) {
-	w.mutex.Lock()
-	defer w.mutex.Unlock()
-	w.broadcast(MakeClientMessage(
-		"guestLeaving",
-		struct {
-			Id uint32 `json:"id"`
-		}{seq}), seq)
-	delete(w.Guests, seq)
-}
+var defaultWorld = world.World{}
 
 func readConfig(staticDir string) {
 	configFile, err := os.Open(filepath.Join(staticDir, "config.json"))
@@ -191,7 +28,6 @@ func readConfig(staticDir string) {
 	}
 }
 
-var world World = NewWorld()
 var partyLine *WebRTCPartyLine
 var config struct {
 	RTCConfiguration json.RawMessage `json:"rtcConfiguration"`
@@ -207,7 +43,7 @@ var knobs map[string]interface{} = make(map[string]interface{})
 
 func startManagementServer(managementAddr string) {
 	mux := http.NewServeMux()
-	mux.Handle("/", reserve.FileServer("static-management"))
+	mux.Handle("/", reserve.FileServer("../static-management"))
 
 	fmt.Printf("Management UI (only) at http://%s/\n", managementAddr)
 	server := http.Server{Addr: managementAddr, Handler: mux}
@@ -220,7 +56,7 @@ func startManagementServer(managementAddr string) {
 		if err != nil {
 			return
 		}
-		var msg ClientMessage
+		var msg world.ClientMessage
 		for {
 			if err = conn.ReadJSON(&msg); err != nil {
 				break
@@ -234,9 +70,9 @@ func startManagementServer(managementAddr string) {
 				knobsMutex.Lock()
 				knobs[knob.Name] = knob.Value
 				knobsMutex.Unlock()
-				world.BroadcastFrom(0, MakeClientMessage("knob", knob))
+				defaultWorld.BroadcastFrom(0, world.MakeClientMessage("knob", knob))
 			case "broadcast":
-				world.BroadcastFrom(0, msg.Body)
+				defaultWorld.BroadcastFrom(0, msg.Body)
 			default:
 				fmt.Println("unknown message:", msg)
 			}
@@ -247,7 +83,7 @@ func startManagementServer(managementAddr string) {
 }
 
 func main() {
-	staticDir := flag.String("static", "./static-default", "Directory for static content")
+	staticDir := flag.String("static", "../static-default", "Directory for static content")
 	httpAddr := flag.String("http", "127.0.0.1:8031", "Listening address")
 	production := flag.Bool("p", false, "Production (disables automatic hot reloading)")
 	managementAddr := flag.String("management", "127.0.0.1:8034", "Listening address for admin pages")
@@ -271,19 +107,19 @@ func main() {
 			return
 		}
 
-		guest := MakeGuest(ctx, conn)
-		var msg ClientMessage
+		guest := world.MakeGuest(ctx, conn)
+		var msg world.ClientMessage
 		var seq uint32
 
 		rtcPeer := WebRTCPartyLinePeer{
 			SendToPeer: func(message interface{}) {
-				guest.Write(MakeClientMessage("rtc", struct {
+				guest.Write(world.MakeClientMessage("rtc", struct {
 					From    uint32      `json:"from"`
 					Message interface{} `json:"message"`
 				}{0, message}))
 			},
 			MapTrack: func(mid string, id uint32) {
-				guest.Write(MakeClientMessage("mapTrack", struct {
+				guest.Write(world.MakeClientMessage("mapTrack", struct {
 					Mid string `json:"mid"`
 					Id  uint32 `json:"id"`
 				}{mid, id}))
@@ -297,18 +133,18 @@ func main() {
 			switch msg.Type {
 			case "join":
 				if seq != 0 {
-					world.Rejoin(seq)
+					defaultWorld.Rejoin(seq)
 				} else {
-					var state GuestState
+					var state world.GuestState
 					err := json.Unmarshal(msg.Body, &state)
 					if err != nil {
 						fmt.Println(err)
 						return
 					}
-					guest.GuestState = state
-					seq = world.AddGuest(ctx, guest)
+					guest.Public.GuestState = state
+					seq = defaultWorld.AddGuest(ctx, guest)
 					rtcPeer.UserInfo = seq
-					world.UpdateGuest(seq)
+					defaultWorld.UpdateGuest(seq)
 
 					if err := partyLine.AddPeer(ctx, &rtcPeer); err != nil {
 						fmt.Println("err creating peerconnection ", seq, err)
@@ -321,18 +157,22 @@ func main() {
 					fmt.Println("client tried to send state without joining first ", conn.RemoteAddr().String())
 					break
 				}
-				var state GuestState
+				var state world.GuestState
 				err := json.Unmarshal(msg.Body, &state)
 				if err != nil {
 					fmt.Println(err)
 					break
 				}
-				guest.GuestState = state
-				world.UpdateGuest(seq)
+				guest.Public.GuestState = state
+				defaultWorld.UpdateGuest(seq)
+			case "debug.fps":
+				if err := json.Unmarshal(msg.Body, &guest.Debug.FPS); err != nil {
+					fmt.Println("bad fps value from ", seq)
+				}
 			case "getKnobs":
 				knobsMutex.RLock()
 				for name, value := range knobs {
-					guest.Write(MakeClientMessage("knob", Knob{name, value}))
+					guest.Write(world.MakeClientMessage("knob", Knob{name, value}))
 				}
 				knobsMutex.RUnlock()
 			case "rtc":
@@ -359,12 +199,12 @@ func main() {
 					break
 				}
 
-				outboundMessage := MakeClientMessage("chat", struct {
+				outboundMessage := world.MakeClientMessage("chat", struct {
 					From    uint32      `json:"from"`
 					Message interface{} `json:"message"`
 				}{seq, chatMessage.Message})
 
-				world.BroadcastFrom(seq, outboundMessage)
+				defaultWorld.BroadcastFrom(seq, outboundMessage)
 			default:
 				fmt.Println("unknown message:", msg)
 			}

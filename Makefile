@@ -6,7 +6,7 @@ deps: \
 	static-default/deps/three/examples/jsm/utils/BufferGeometryUtils.js \
 
 run: deps
-	go run ./server
+	cd server && go run ./main
 
 static-default/deps/three/%:
 	mkdir -p "$(dir $@)"
