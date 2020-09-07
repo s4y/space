@@ -325,7 +325,13 @@ const buildGlRoom = (canvas, config) => {
     return ret;
   };
 
+  let projectorId = null;
+
   const updateGuest = (id, remoteGuest) => {
+    if (remoteGuest.state.role == 'cast') {
+      projectorId = id;
+      return;
+    }
     const guest = getOrCreateGuest(id, remoteGuest);
     const { state } = remoteGuest;
     guest.head.rotation.y = -state.look[0];
@@ -337,6 +343,10 @@ const buildGlRoom = (canvas, config) => {
   }
 
   const updateMedia = (id, { videoTrack, audioTrack }) => {
+    if (id == projectorId) {
+      projector.setStream(new MediaStream([videoTrack, audioTrack].filter(t => t)));
+      return;
+    }
     // console.log('updating media for guest', id, videoTrack, audioTrack);
     const guest = guests[id];
     if (!guest) {
@@ -381,6 +391,65 @@ const buildGlRoom = (canvas, config) => {
   }
 
   const byteFreqData = new Uint8Array(1024);
+
+  const createProjector = (size) => {
+    const group = new THREE.Group();
+    const mesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(size * (16/9), size));
+    mesh.position.y = size/2;
+    group.add(mesh);
+
+    const light = new THREE.PointLight(0xffffff, 100, size + 30);
+    light.position.z = 30;
+    light.position.y = size/2;
+    group.add(light);
+      
+    const posSound = new THREE.PositionalAudio(listener);
+    posSound.setRefDistance(10);
+    posSound.setRolloffFactor(1.5);
+    posSound.setDistanceModel('exponential');
+    posSound.setDirectionalCone(120, 230, 0.2);
+    posSound.rotation.y = Math.PI;
+    mesh.add(posSound);
+
+    const videoEl = document.createElement('video');
+    videoEl.playsInline = true;
+    videoEl.muted = true;
+    posSound.setMediaElementSource(videoEl);
+
+    const videoTexture = new THREE.VideoTexture(videoEl);
+    videoTexture.minFilter = THREE.LinearFilter;
+    videoTexture.magFilter = THREE.LinearFilter;
+    videoTexture.format = THREE.RGBFormat;
+    // videoTexture.offset.set(-0.25, 0);
+    mesh.material = new THREE.MeshPhongMaterial({
+      color:0xffffff,
+      side: THREE.DoubleSide,
+      map: videoTexture,
+    });
+    // videoEl.addEventListener('playing', () => {
+    //   videoPanel.material.uniforms.aspect.value = videoEl.videoWidth / videoEl.videoHeight;
+    //   head.add(videoPanel);
+    // });
+    // videoEl.addEventListener('paused', () => {
+    //   head.remove(videoPanel);
+    // });
+
+    scene.add(group);
+    return {
+      group,
+      setStream: stream => {
+        videoEl.srcObject = stream;
+        gestureWrangler.playVideo(videoEl);
+        posSound.setMediaStreamSource(stream);
+        posSound.source.connect(musicAnalyser);
+      }
+    };
+  };
+
+  let projector = createProjector(40);
+  projector.group.position.z = -75;
+  projector.group.position.x = -180;
+  projector.group.rotation.y = Math.PI / 2;
 
   const draw = ({ now, look, position }) => {
     camera.position.x = position[0];
