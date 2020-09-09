@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/gorilla/websocket"
+	"github.com/s4y/space/util"
 )
 
 type Vec2 [2]float64
@@ -23,17 +24,13 @@ type GuestPublic struct {
 	GuestState
 }
 
-type GuestDebug struct {
-	FPS int
-}
-
 type Guest struct {
-	Public GuestPublic
-	Debug  GuestDebug
-	read   chan interface{}
-	write  chan interface{}
-	ctx    context.Context
-	cancel context.CancelFunc
+	Public    GuestPublic
+	debugInfo sync.Map
+	read      chan interface{}
+	write     chan interface{}
+	ctx       context.Context
+	cancel    context.CancelFunc
 }
 
 func MakeGuest(ctx context.Context, conn *websocket.Conn) *Guest {
@@ -87,7 +84,18 @@ func (g *Guest) Write(msg interface{}) error {
 	}
 }
 
+type WorldEventType int
+
+const (
+	WorldEventGuestJoined WorldEventType = iota
+	WorldEventGuestUpdated
+	WorldEventGuestDebug
+	WorldEventGuestLeft
+)
+
 type World struct {
+	observers util.Observers
+
 	mutex  sync.Mutex
 	seq    uint32
 	Guests map[uint32]*Guest `json:"guests"`
@@ -103,7 +111,7 @@ func MakeClientMessage(t string, message interface{}) ClientMessage {
 	return ClientMessage{t, body}
 }
 
-func MakeGuestUpdateMessage(id uint32, guest Guest) interface{} {
+func MakeGuestUpdateMessage(id uint32, guest *Guest) interface{} {
 	return MakeClientMessage("guestUpdate", struct {
 		Id    uint32      `json:"id"`
 		State GuestPublic `json:"state"`
@@ -128,8 +136,12 @@ func (w *World) join(seq uint32, g *Guest) {
 		if v == g {
 			continue
 		}
-		g.Write(MakeGuestUpdateMessage(k, *v))
+		g.Write(MakeGuestUpdateMessage(k, v))
 	}
+}
+
+func (w *World) Observe(ctx context.Context, e WorldEventType, cb interface{}) {
+	w.observers.Add(ctx, e, cb)
 }
 
 func (w *World) AddGuest(ctx context.Context, g *Guest) uint32 {
@@ -137,12 +149,18 @@ func (w *World) AddGuest(ctx context.Context, g *Guest) uint32 {
 	defer w.mutex.Unlock()
 	w.seq += 1
 	seq := w.seq
+	if w.Guests == nil {
+		w.Guests = map[uint32]*Guest{}
+	}
 	w.Guests[seq] = g
 	w.join(seq, g)
 	go func() {
 		<-ctx.Done()
 		w.RemoveGuest(seq)
 	}()
+	for _, o := range w.observers.Get(WorldEventGuestJoined) {
+		o.(func(uint32, *Guest))(seq, g)
+	}
 	return seq
 }
 
@@ -162,7 +180,20 @@ func (w *World) UpdateGuest(seq uint32) {
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
 	g := w.Guests[seq]
-	w.broadcast(MakeGuestUpdateMessage(seq, *g), seq)
+	w.broadcast(MakeGuestUpdateMessage(seq, g), seq)
+	for _, o := range w.observers.Get(WorldEventGuestUpdated) {
+		o.(func(uint32, *Guest))(seq, g)
+	}
+}
+
+func (w *World) SetGuestDebug(seq uint32, key string, value interface{}) {
+	w.mutex.Lock()
+	g := w.Guests[seq]
+	defer w.mutex.Unlock()
+	g.debugInfo.Store(key, value)
+	for _, o := range w.observers.Get(WorldEventGuestDebug) {
+		o.(func(uint32, string, interface{}))(seq, key, value)
+	}
 }
 
 func (w *World) RemoveGuest(seq uint32) {
@@ -174,4 +205,7 @@ func (w *World) RemoveGuest(seq uint32) {
 			Id uint32 `json:"id"`
 		}{seq}), seq)
 	delete(w.Guests, seq)
+	for _, o := range w.observers.Get(WorldEventGuestLeft) {
+		o.(func(uint32))(seq)
+	}
 }

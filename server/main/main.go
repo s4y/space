@@ -51,11 +51,43 @@ func startManagementServer(managementAddr string) {
 	upgrader := websocket.Upgrader{}
 
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		// ctx := r.Context()
+		ctx := r.Context()
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			return
 		}
+		ch := make(chan interface{}, 16)
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case msg := <-ch:
+					conn.WriteJSON(msg)
+				}
+			}
+		}()
+		defaultWorld.Observe(ctx, world.WorldEventGuestJoined, func(seq uint32, g *world.Guest) {
+			ch <- world.MakeGuestUpdateMessage(seq, g)
+		})
+		defaultWorld.Observe(ctx, world.WorldEventGuestUpdated, func(seq uint32, g *world.Guest) {
+			ch <- world.MakeGuestUpdateMessage(seq, g)
+		})
+		defaultWorld.Observe(ctx, world.WorldEventGuestDebug, func(seq uint32, k string, v interface{}) {
+			ch <- world.MakeClientMessage(
+				"guestDebug",
+				struct {
+					Id    uint32                 `json:"id"`
+					Debug map[string]interface{} `json:"debug"`
+				}{seq, map[string]interface{}{k: v}})
+		})
+		defaultWorld.Observe(ctx, world.WorldEventGuestLeft, func(seq uint32) {
+			ch <- world.MakeClientMessage(
+				"guestLeaving",
+				struct {
+					Id uint32 `json:"id"`
+				}{seq})
+		})
 		var msg world.ClientMessage
 		for {
 			if err = conn.ReadJSON(&msg); err != nil {
