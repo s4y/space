@@ -198,9 +198,11 @@ func main() {
 				guest.Public.GuestState = state
 				defaultWorld.UpdateGuest(seq)
 			case "debug.fps":
-				if err := json.Unmarshal(msg.Body, &guest.Debug.FPS); err != nil {
+				var fps float64
+				if err := json.Unmarshal(msg.Body, &fps); err != nil {
 					fmt.Println("bad fps value from ", seq)
 				}
+				defaultWorld.SetGuestDebug(seq, "fps", fps)
 			case "getKnobs":
 				knobsMutex.RLock()
 				for name, value := range knobs {

@@ -193,7 +193,7 @@ class Room {
       },
       mediaStream: this.mediaStream,
       onerror() {
-        this.ws.bounce();
+        this.ws && this.ws.bounce();
       }
     });
   }

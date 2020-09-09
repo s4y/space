@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<link rel=stylesheet href=style.css>
 <body>
 <button type=button onclick="adminAction('reload', '/party/')">Reload renderer</button>
 <button type=button onclick="adminAction('reload', '/space/services/music.html')">Reload music</button>
@@ -15,6 +16,7 @@
     <span data-key=label></span>
   </li>
 </template>
+<ul id=guests></ul>
 <script type=module>
 
 class Knobs {
@@ -124,6 +126,40 @@ try {
   console.log('doot', e);
 }
 
+const guestViews = {};
+
+class GuestView {
+  constructor(id) {
+    this.el = document.createElement('li');
+
+    this.idEl = document.createElement('div');
+    this.idEl.textContent = id;
+    this.idEl.classList.add('guestId');
+    this.el.appendChild(this.idEl);
+
+    this.fpsEl = document.createElement('div');
+    this.fpsEl.classList.add('fps');
+    this.el.appendChild(this.fpsEl);
+  }
+  updateDebug(debug) {
+    if (debug.fps) {
+      this.fpsEl.textContent = debug.fps.toFixed(0);
+      this.fpsEl.classList.remove('unfresh');
+      this.fpsEl.offsetWidth;
+      this.fpsEl.classList.add('unfresh');
+    }
+  }
+}
+
+const getGuestView = id => {
+  let guest = guestViews[id];
+  if (!guest) {
+    guest = guestViews[id] = new GuestView(id);
+    guests.appendChild(guest.el);
+  }
+  return guest;
+};
+
 const connectWs = () => {
   const ws = new WebSocket(`${location.protocol == 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
 
@@ -133,7 +169,30 @@ const connectWs = () => {
   ws.onmessage = e => {
     const message = JSON.parse(e.data);
     const {type, body} = message;
-    console.log('message', type, body);
+    switch (type) {
+      case "guestUpdate": {
+        const { id } = body;
+        const guest = getGuestView(id);
+        }
+        break;
+      case "guestDebug": {
+        const { id, debug } = body;
+        const guest = getGuestView(id);
+        guest.updateDebug(debug);
+        }
+        break;
+      case "guestLeaving": {
+        const { id } = body;
+        const guest = guestViews[id];
+        if (guest) {
+          guests.removeChild(guest.el);
+          delete guests[id];
+        }
+        }
+        break;
+      default:
+        console.log('message', type, body);
+    }
   };
   ws.onopen = e => {
     for (const k in knobs.knobs)

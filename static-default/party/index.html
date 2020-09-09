@@ -25,6 +25,33 @@ const hqs = location.hash
   .map(c => c.split('=').map(decodeURIComponent))
   .reduce((params, [k, v]) => (params[k] = v, params), {});
 
+const createStatsTracker = () => {
+  let ws;
+  Service.get('ws', x => ws = x);
+  return {
+    frames: null,
+    startTime: null,
+    begin() {
+      if (!this.startTime) {
+        this.startTime = +new Date();
+        this.frames = 0;
+        setTimeout(() => {
+          const delta = +new Date() - this.startTime;
+          const fps = this.frames / (delta / 1000)
+          try {
+          ws.send({ type: "debug.fps", body: fps });
+          } catch(e) {}
+          this.startTime = null;
+        }, 1000);
+      }
+      this.frames++;
+    },
+    end() {
+    }
+  };
+};
+const stats = createStatsTracker();
+
 // Based on code by Adam Quinn (https://github.com/agquinn01)
 const createSky = () => {
   const sky = new THREE.Group();
@@ -525,10 +552,12 @@ const buildRoom = (el, config) => {
     return true;
   };
   const draw = rawNow => {
+    stats && stats.begin();
     const now = rawNow + timeOffset;
     player.stepPhysics();
     const { position, look } = player;
     glRoom.draw({ now, position, look });
+    stats && stats.end();
     animationFrame = requestAnimationFrame(draw);
   };
 
