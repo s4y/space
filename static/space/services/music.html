@@ -14,7 +14,7 @@ const music = {
     const ac = this.ac = window.top.globalAudioContext;
 
     const audioEl = document.createElement('audio');
-    audioEl.autoplay = true;
+    // audioEl.autoplay = true;
     const musicSource = ac.createMediaElementSource(audioEl);
     const musicAnalyser = ac.createAnalyser();
     this.analyser = musicAnalyser;
@@ -36,7 +36,7 @@ const music = {
       musicGain.gain.setValueAtTime(0, ac.currentTime);
     });
 
-    audioEl.src = '/media/music'; 
+    // audioEl.src = '/media/music'; 
   },
   updateVolume() {
     if (this.musicGain.gain.cancelAndHoldAtTime)
