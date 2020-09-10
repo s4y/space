@@ -53,14 +53,10 @@ import Service from '/space/js/Service.js';
 
 Service.setHost(serviceFrames);
 
-window.globalAudioContext = new (window.AudioContext || window.webkitAudioContext)();
-
 let gestureWrangler;
 Service.get('gestureWrangler', w => {
   gestureWrangler = w;
   w.setPromptEl(needGesture, needGesture.querySelector('button'));
-  if (!window.waitForGesture)
-    gestureWrangler.playAudioContext(window.globalAudioContext);
 });
 
 Service.get('docent', docent => {});
@@ -89,7 +85,6 @@ const prepSplash = () => {
     e.preventDefault();
     sessionStorage.inParty = true;
 
-    window.globalAudioContext.resume();
     window.waitForGesture = false;
     partyFrame.contentWindow.startOnGesture().then(() => {
       partyFrame.style.visibility = '';

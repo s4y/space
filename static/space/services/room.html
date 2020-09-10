@@ -71,6 +71,7 @@ class Player {
 
 class Room {
   constructor() {
+    this.ac = new (window.AudioContext || window.webkitAudioContext)();
     this.observers = new Observers();
     this.mediaStream = new MediaStream();
     this.guests = {};
@@ -247,6 +248,10 @@ Service.get('docent', docent => {
   });
 });
 
+Service.get('gestureWrangler', gestureWrangler => {
+  gestureWrangler.playAudioContext(room.ac);
+});
+
 class RoomClient {
   constructor(context) {
     this.context = context;
@@ -256,6 +261,9 @@ class RoomClient {
   }
   observe(key, cb) {
     return room.observers.add(key, this.context, cb);
+  }
+  get ac() {
+    return room.ac;
   }
   get player() {
     return room.player;

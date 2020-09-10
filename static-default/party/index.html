@@ -14,8 +14,6 @@ import Service from '/space/js/Service.js'
 import RTCPeer from '/space/js/RTCPeer.js'
 import RTCLoopback from '/space/js/RTCLoopback.js'
 
-THREE.AudioContext.setContext(window.top.globalAudioContext);
-
 Service.get('docent', docent => {});
 
 const hqs = location.hash
@@ -341,7 +339,7 @@ const buildGlRoom = (canvas, config) => {
     ret.audioTrack = remoteGuest.audioTrack;
 
     if (joinSound) {
-      const joinSource = window.top.globalAudioContext.createBufferSource();
+      const joinSource = THREE.AudioContext.getContext().createBufferSource();
       joinSource.buffer = joinSound;
       joinSource.connect(posSound.getOutput());
       setTimeout(() => {
@@ -390,7 +388,7 @@ const buildGlRoom = (canvas, config) => {
       return;
 
     if (partSound) {
-      const partSource = window.top.globalAudioContext.createBufferSource();
+      const partSource = THREE.AudioContext.getContext().createBufferSource();
       partSource.buffer = partSound;
       partSource.connect(guest.posSound.getOutput());
       partSource.start();
@@ -562,6 +560,7 @@ const buildRoom = (el, config) => {
   };
 
   Service.get('room', room => {
+    const ac = room.ac;
     player = room.player;
 
     room.join();
@@ -587,6 +586,20 @@ const buildRoom = (el, config) => {
     if (!animationFrame)
       animationFrame = requestAnimationFrame(draw);
 
+    fetch('/sounds/join.mp3')
+      .then(r => r.arrayBuffer())
+      .then(ab => ac.decodeAudioData(ab))
+      .then(buf => {
+        joinSound = buf;
+      });
+
+    fetch('/sounds/part.mp3')
+      .then(r => r.arrayBuffer())
+      .then(ab => ac.decodeAudioData(ab))
+      .then(buf => {
+        partSound = buf;
+      });
+
   });
 
   return ret;
@@ -600,20 +613,6 @@ let motion = 0;
 
 let joinSound;
 let partSound;
-
-fetch('/sounds/join.mp3')
-  .then(r => r.arrayBuffer())
-  .then(ab => window.top.globalAudioContext.decodeAudioData(ab))
-  .then(buf => {
-    joinSound = buf;
-  });
-
-fetch('/sounds/part.mp3')
-  .then(r => r.arrayBuffer())
-  .then(ab => window.top.globalAudioContext.decodeAudioData(ab))
-  .then(buf => {
-    partSound = buf;
-  });
 
 const start = () => {
   Service.get('music', music => {
@@ -657,7 +656,15 @@ const start = () => {
     .then(r => r.json())
     .then(config => {
       timeOffset = new Date() - config.zeroTime
-      const room = buildRoom(document.getElementById('room'), config);
+
+      let builtRoom = false;
+      Service.get('room', room => {
+        THREE.AudioContext.setContext(room.ac);
+        if (!builtRoom) {
+          buildRoom(document.getElementById('room'), config);
+          builtRoom = true;
+        }
+      });
     })
 };
 

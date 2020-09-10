@@ -11,7 +11,8 @@ const music = {
     this.ac.resume();
   },
   start() {
-    const ac = this.ac = window.top.globalAudioContext;
+    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    this.ac = ac;
 
     const audioEl = document.createElement('audio');
     // audioEl.autoplay = true;
