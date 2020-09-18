@@ -99,15 +99,6 @@ const buildGlRoom = (canvas, config) => {
       listener.gain.connect(loopbackDestination);
       loopbackEl.srcObject = loopback.outputStream;
       gestureWrangler.playVideo(loopbackEl);
-
-      Service.get('music', music => {
-        window.top.music = music;
-        const musicDestination = music.ac.createMediaStreamDestination();
-        const localMusicSource = listener.context.createMediaStreamSource(musicDestination.stream);
-        music.musicGain.disconnect();
-        music.musicGain.connect(musicDestination);
-        localMusicSource.connect(loopbackDestination);
-      });
     });
 
     loopback.setInputStream(loopbackDestination.stream);
@@ -615,10 +606,6 @@ let joinSound;
 let partSound;
 
 const start = () => {
-  Service.get('music', music => {
-    musicAnalyser = music.analyser;
-  });
-
   Service.get('knobs', knobs => {
     knobs.observe('world.musicReactivity', v => {
       musicReactivity = v;
@@ -660,6 +647,7 @@ const start = () => {
       let builtRoom = false;
       Service.get('room', room => {
         THREE.AudioContext.setContext(room.ac);
+        musicAnalyser = room.ac.createAnalyser();
         if (!builtRoom) {
           buildRoom(document.getElementById('room'), config);
           builtRoom = true;

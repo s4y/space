@@ -245,7 +245,6 @@ func main() {
 		}
 		return
 	})
-	http.Handle("/media/music", makeMusicHandler())
 	// http.Handle("/astream/", http.FileServer(http.Dir(".")))
 	if *production {
 		fileServer := http.FileServer(http.Dir(*staticDir))
