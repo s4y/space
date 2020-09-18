@@ -97,7 +97,9 @@ class Room {
       return;
     this.isJoined = true;
     Service.get('ws', ws => this.setWs(ws));
-
+    Service.get('gestureWrangler', gestureWrangler => {
+      gestureWrangler.playAudioContext(this.ac);
+    });
   }
   setNeedsUpdate() {
     if (this.needsUpdate)
@@ -246,10 +248,6 @@ Service.get('docent', docent => {
     if (what == 'webrtc')
       if (room.whoami) room.connectRTC()
   });
-});
-
-Service.get('gestureWrangler', gestureWrangler => {
-  gestureWrangler.playAudioContext(room.ac);
 });
 
 class RoomClient {
