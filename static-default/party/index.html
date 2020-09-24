@@ -81,6 +81,65 @@ const createSky = () => {
   return sky;
 };
 
+
+const makeCortlandSoundscape = (listener) => {
+  const group = new THREE.Group();
+  const updateBalloons = [];
+  const balloonGeometry = new THREE.IcosahedronBufferGeometry(5, 0);
+  for (let i = 0; i < 8; i++) {
+    const rowLight = new THREE.PointLight(0xffffff, 100, 50);
+    rowLight.power = 2000;
+    rowLight.decay = 2;
+    rowLight.position.y = -10;
+    for (let j = 0; j < 3; j++) {
+      const balloon = new THREE.Mesh(
+        balloonGeometry,
+        new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+        }));
+      // if (j == i)
+      //   balloon.add(rowLight);
+      updateBalloons.push((now, byteFreqData) => {
+        balloon.position.y = 10;// + motion * (Math.sin(now / 10000 + i / 2. + j * 3.) * 10.);
+        analyser.getByteFrequencyData(buf);
+        balloon.material.color.setHSL((i + j) / 40 + now / 16000, 0.5, + (buf[i*10+j]) / 255 * 0.8);
+      });
+      balloon.position.z = j * 20;
+      balloon.position.x = i * 20;
+      group.add(balloon);
+
+
+      const osc = listener.context.createOscillator();
+      osc.frequency.value = [1, 16/15, 9/8, 6/5, 4/3, 45/32, 6/5, 5/4][i] * (200 + 200 / (j+1));
+      osc.start();
+      const gain = listener.context.createGain();
+      osc.connect(gain);
+      gain.gain.value = 0.1;
+      osc.connect(gain);
+
+      const analyser = listener.context.createAnalyser();
+      const buf = new Uint8Array(1024);
+      osc.connect(analyser);
+
+      const posSound = new THREE.PositionalAudio(listener);
+      posSound.setNodeSource(gain);
+      posSound.setRefDistance(15);
+      posSound.setRolloffFactor(5);
+      posSound.setDistanceModel('exponential');
+      posSound.rotation.x = Math.PI;
+      balloon.add(posSound);
+    }
+  }
+  return {
+    group,
+    update(...args) {
+      for (const f of updateBalloons)
+        f(...args);
+    },
+  };
+}
+
+
 const buildGlRoom = (canvas, config) => {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(60);
@@ -162,6 +221,11 @@ const buildGlRoom = (canvas, config) => {
       scene.add(balloon);
     }
   }
+
+  const css = makeCortlandSoundscape(listener);
+  css.group.position.x = 250;
+  css.group.position.z = -150;
+  scene.add(css.group);
 
   const floor = new THREE.Mesh(
     new THREE.CircleBufferGeometry(100000),
