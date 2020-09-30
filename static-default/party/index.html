@@ -363,10 +363,8 @@ const buildGlRoom = (canvas, config) => {
       projector.setStream(new MediaStream([videoTrack, audioTrack].filter(t => t)));
       return;
     }
-    // console.log('updating media for guest', id, videoTrack, audioTrack);
     const guest = guests[id];
     if (!guest) {
-      console.log('updating media for unknown guest', id);
       return;
     }
     guest.videoTrack = videoTrack;

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pion/rtcp"
@@ -23,21 +24,19 @@ type WebRTCPartyLine struct {
 	api    *webrtc.API
 	config webrtc.Configuration
 
-	peerListMutex sync.RWMutex
-	peers         []*WebRTCPartyLinePeer
-}
-
-type TrackAndPLI struct {
-	track   *webrtc.Track
-	pliChan chan bool
+	peerListMutex sync.Mutex
+	peers         atomic.Value // []*WebRTCPartyLinePeer
 }
 
 type WebRTCPartyLinePeer struct {
-	mutex          sync.RWMutex
-	partyLine      *WebRTCPartyLine
-	ctx            context.Context
-	peerConnection *webrtc.PeerConnection
-	tracks         []TrackAndPLI
+	partyLine        *WebRTCPartyLine
+	ctx              context.Context
+	tasks            chan func()
+	peerConnection   *webrtc.PeerConnection
+	tracks           []*webrtc.Track
+	pendingMids      []func()
+	waitingForAnswer bool
+	sendAnotherOffer bool
 
 	UserInfo   uint32
 	SendToPeer func(interface{})
@@ -67,14 +66,9 @@ func NewWebRTCPartyLine(configIn json.RawMessage) *WebRTCPartyLine {
 }
 
 func (pl *WebRTCPartyLine) AddPeer(ctx context.Context, p *WebRTCPartyLinePeer) error {
-	pl.peerListMutex.Lock()
-	defer pl.peerListMutex.Unlock()
-
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
-
 	p.partyLine = pl
 	p.ctx = ctx
+	p.tasks = make(chan func(), 64)
 
 	var err error
 	p.peerConnection, err = p.partyLine.api.NewPeerConnection(p.partyLine.config)
@@ -95,22 +89,7 @@ func (pl *WebRTCPartyLine) AddPeer(ctx context.Context, p *WebRTCPartyLinePeer) 
 		return err
 	}
 
-	//p.peerConnection.CreateDataChannel("", nil)
-
-	go func() {
-		for _, peer := range p.partyLine.peers {
-			peer.mutex.RLock()
-			for _, track := range peer.tracks {
-				p.mutex.Lock()
-				err = p.addTrack(peer, track.track, track.pliChan)
-				p.mutex.Unlock()
-				if err != nil {
-					fmt.Println("err tracking up: ", err)
-				}
-			}
-			peer.mutex.RUnlock()
-		}
-	}()
+	p.peerConnection.CreateDataChannel("data", nil)
 
 	p.peerConnection.OnICECandidate(func(i *webrtc.ICECandidate) {
 		if i != nil {
@@ -123,114 +102,158 @@ func (pl *WebRTCPartyLine) AddPeer(ctx context.Context, p *WebRTCPartyLinePeer) 
 	// https://github.com/pion/ice/issues/252
 	p.peerConnection.OnICEConnectionStateChange(func(state webrtc.ICEConnectionState) {
 		if state == webrtc.ICEConnectionStateFailed {
-			fmt.Println("restart ice plz")
-			p.mutex.Lock()
-			defer p.mutex.Unlock()
-			p.sendOffer(true)
+			fmt.Println(p.UserInfo, "restart ice plz")
+			p.tasks <- func() {
+				p.sendOffer(true)
+			}
 		}
 	})
 
 	p.peerConnection.OnTrack(func(track *webrtc.Track, receiver *webrtc.RTPReceiver) {
-		// fmt.Println("[TODO] got track:", track.SSRC(), track.ID(), track.Label())
-		localTrack, err := p.peerConnection.NewTrack(track.PayloadType(), track.SSRC(), track.ID(), track.Label())
-		if err != nil {
-			fmt.Println("OnTrack err ", err)
-			return
+		p.tasks <- func() {
+			// fmt.Println("[TODO] got track:", track.SSRC(), track.ID(), track.Label())
+			localTrack, err := p.peerConnection.NewTrack(track.PayloadType(), track.SSRC(), track.ID(), track.Label())
+			if err != nil {
+				fmt.Println("OnTrack err ", err)
+				return
+			}
+			pliChan := make(chan bool)
+
+			// TODO
+			go func() {
+				ticker := time.NewTicker(rtcpPLIInterval)
+				defer ticker.Stop()
+				defer close(pliChan)
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case <-ticker.C:
+						pliChan <- true
+					}
+				}
+			}()
+
+			go func() {
+				for range pliChan {
+					if rtcpSendErr := p.peerConnection.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{MediaSSRC: track.SSRC()}}); rtcpSendErr != nil {
+						fmt.Println(rtcpSendErr)
+					}
+				}
+			}()
+
+			go func() {
+				rtpBuf := make([]byte, 1400)
+				for {
+					i, readErr := track.Read(rtpBuf)
+					if readErr == io.EOF {
+						return
+					}
+					if readErr != nil {
+						fmt.Println("read error, bailing:", readErr)
+						return
+					}
+
+					// ErrClosedPipe means we don't have any subscribers, this is ok if no peers have connected yet
+					if _, err = localTrack.Write(rtpBuf[:i]); err != nil && err != io.ErrClosedPipe {
+						fmt.Println("write error, ignoring:", err)
+					}
+				}
+			}()
+
+			p.tracks = append(p.tracks, localTrack)
+
+			peers := p.partyLine.peers.Load().([]*WebRTCPartyLinePeer)
+			for i := range peers {
+				peer := peers[i]
+				if peer == p {
+					continue
+				}
+				if peer.peerConnection == nil {
+					continue
+				}
+				peer.tasks <- func() {
+					if err := peer.addTrack(p, localTrack); err != nil {
+						fmt.Println("err tracking upp: ", err)
+					} else if err := peer.sendOffer(false); err != nil {
+						fmt.Println("err adding track: ", err)
+					}
+				}
+			}
+
+			pliChan <- true
 		}
-		pliChan := make(chan bool)
-		trackAndPli := TrackAndPLI{localTrack, pliChan}
-		p.tracks = append(p.tracks, trackAndPli)
-
-		// TODO
-		go func() {
-			ticker := time.NewTicker(rtcpPLIInterval)
-			defer ticker.Stop()
-			defer close(pliChan)
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					pliChan <- true
-				}
-			}
-		}()
-
-		go func() {
-			for range pliChan {
-				if rtcpSendErr := p.peerConnection.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{MediaSSRC: track.SSRC()}}); rtcpSendErr != nil {
-					fmt.Println(rtcpSendErr)
-				}
-			}
-		}()
-
-		go func() {
-			rtpBuf := make([]byte, 1400)
-			for {
-				i, readErr := track.Read(rtpBuf)
-				if readErr == io.EOF {
-					return
-				}
-				if readErr != nil {
-					fmt.Println("read error, bailing", readErr)
-					return
-				}
-
-				// ErrClosedPipe means we don't have any subscribers, this is ok if no peers have connected yet
-				if _, err = localTrack.Write(rtpBuf[:i]); err != nil && err != io.ErrClosedPipe {
-					fmt.Println("write error, ignoring", err)
-				}
-			}
-		}()
-
-		p.partyLine.peerListMutex.RLock()
-		for _, peer := range p.partyLine.peers {
-			if peer == p {
-				continue
-			}
-			if peer.peerConnection == nil {
-				continue
-			}
-			go func(peer *WebRTCPartyLinePeer) {
-				peer.mutex.Lock()
-				defer peer.mutex.Unlock()
-				if err := peer.addTrack(p, localTrack, pliChan); err != nil {
-					fmt.Println("err tracking upp: ", err)
-				} else if err := peer.sendOffer(false); err != nil {
-					fmt.Println("err adding track: ", err)
-				}
-			}(peer)
-		}
-		p.partyLine.peerListMutex.RUnlock()
-
-		pliChan <- true
 	})
 
-	pl.peers = append(pl.peers, p)
+	pl.peerListMutex.Lock()
+	if peers, ok := pl.peers.Load().([]*WebRTCPartyLinePeer); ok {
+		pl.peers.Store(append(peers, p))
+	} else {
+		pl.peers.Store([]*WebRTCPartyLinePeer{p})
+	}
+	pl.peerListMutex.Unlock()
+
+	go func() {
+		for {
+			select {
+			case <-p.ctx.Done():
+				return
+			case task := <-p.tasks:
+				task()
+			}
+		}
+	}()
+
 	go func() {
 		<-ctx.Done()
 		pl.RemovePeer(p)
 	}()
+
+	p.tasks <- func() {
+		peers := p.partyLine.peers.Load().([]*WebRTCPartyLinePeer)
+		for i := range peers {
+			peer := peers[i]
+			if peer == p {
+				continue
+			}
+			peer.tasks <- func() {
+				tracks := append([]*webrtc.Track(nil), peer.tracks...)
+				p.tasks <- func() {
+					for _, track := range tracks {
+						if err := p.addTrack(peer, track); err != nil {
+							fmt.Println("err tracking up: ", err)
+						}
+					}
+				}
+			}
+			p.sendOffer(false)
+		}
+
+		p.sendOffer(false)
+	}
+
 	return nil
 }
 
 func (pl *WebRTCPartyLine) RemovePeer(p *WebRTCPartyLinePeer) {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
-	if p.peerConnection != nil {
-		p.peerConnection.Close()
-	}
 	pl.peerListMutex.Lock()
-	defer pl.peerListMutex.Unlock()
-	for i, peer := range pl.peers {
+	peers := p.partyLine.peers.Load().([]*WebRTCPartyLinePeer)
+	for i, peer := range peers {
 		if peer == p {
-			pl.peers = append(pl.peers[:i], pl.peers[i+1:]...)
+			pl.peers.Store(append(peers[:i], peers[i+1:]...))
 			break
 		}
 	}
+	pl.peerListMutex.Unlock()
+
+	p.peerConnection.Close()
 }
 
 func (p *WebRTCPartyLinePeer) sendOffer(restartIce bool) error {
+	if p.waitingForAnswer && !restartIce {
+		p.sendAnotherOffer = true
+		return nil
+	}
 	var opts *webrtc.OfferOptions
 	if restartIce {
 		opts = &webrtc.OfferOptions{ICERestart: true}
@@ -243,35 +266,35 @@ func (p *WebRTCPartyLinePeer) sendOffer(restartIce bool) error {
 	if err != nil {
 		return err
 	}
+	p.waitingForAnswer = true
+	for _, f := range p.pendingMids {
+		f()
+	}
+	p.pendingMids = nil
 	p.SendToPeer([]interface{}{"offer", offer})
 	return nil
 }
 
-func (p *WebRTCPartyLinePeer) addTrack(peer *WebRTCPartyLinePeer, track *webrtc.Track, pliChan chan bool) error {
-	sender, err := p.peerConnection.AddTrack(track)
+func (p *WebRTCPartyLinePeer) addTrack(peer *WebRTCPartyLinePeer, track *webrtc.Track) error {
+	transceiver, err := p.peerConnection.AddTransceiverFromTrack(track)
 	if err != nil {
 		return err
 	}
 
-	// Creating an offer is necessary to assign a mid to the new track, even if the offer isn't used.
-	_, _ = p.peerConnection.CreateOffer(nil)
+	p.pendingMids = append(p.pendingMids, func() {
+		p.MapTrack(transceiver.Mid(), peer.UserInfo)
+	})
 
-	for _, transceiver := range p.peerConnection.GetTransceivers() {
-		if transceiver.Sender() == sender {
-			p.MapTrack(transceiver.Mid(), peer.UserInfo)
-			break
-		}
-	}
 	go func() {
 		select {
 		case <-peer.ctx.Done():
-			p.mutex.Lock()
-			defer p.mutex.Unlock()
-			if err := sender.Stop(); err != nil {
+			if err := transceiver.Sender().Stop(); err != nil {
 				fmt.Println("error removing old track: ", err)
 			}
-			if err := p.sendOffer(false); err != nil {
-				fmt.Println("error sending offer after removing track: ", err)
+			p.tasks <- func() {
+				if err := p.sendOffer(false); err != nil {
+					fmt.Println("error sending offer after removing track: ", err)
+				}
 			}
 		case <-p.ctx.Done():
 		}
@@ -280,8 +303,6 @@ func (p *WebRTCPartyLinePeer) addTrack(peer *WebRTCPartyLinePeer, track *webrtc.
 }
 
 func (p *WebRTCPartyLinePeer) HandleMessage(message json.RawMessage) error {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
 	var messagePieces []json.RawMessage
 	if err := json.Unmarshal(message, &messagePieces); err != nil {
 		return err
@@ -300,12 +321,22 @@ func (p *WebRTCPartyLinePeer) HandleMessage(message json.RawMessage) error {
 		if err := json.Unmarshal(messageBody, &sessionDescription); err != nil {
 			fmt.Println("failed to unmarshal rtc offer: ", messageBody)
 		}
-		if err := p.peerConnection.SetRemoteDescription(sessionDescription); err != nil {
-			fmt.Println("failed to use answer: ", err)
+		p.tasks <- func() {
+			if err := p.peerConnection.SetRemoteDescription(sessionDescription); err != nil {
+				fmt.Println("failed to use answer: ", err)
+			}
+			p.waitingForAnswer = false
+			if p.sendAnotherOffer {
+				p.sendAnotherOffer = false
+				p.sendOffer(false)
+			}
 		}
-		return nil
 	case "renegotiate":
-		return p.sendOffer(false)
+		p.tasks <- func() {
+			if err := p.sendOffer(false); err != nil {
+				fmt.Println("failed to renegotiate:", err)
+			}
+		}
 	case "icecandidate":
 		var candidate webrtc.ICECandidateInit
 		if err := json.Unmarshal(messageBody, &candidate); err != nil {
@@ -314,8 +345,13 @@ func (p *WebRTCPartyLinePeer) HandleMessage(message json.RawMessage) error {
 		if p.peerConnection == nil {
 			return errors.New("tried to add ice candidates w/o a peerconnection")
 		}
-		return p.peerConnection.AddICECandidate(candidate)
+		p.tasks <- func() {
+			if err := p.peerConnection.AddICECandidate(candidate); err != nil {
+				fmt.Println("failed to add ice candidate:", err)
+			}
+		}
 	default:
 		return errors.New(fmt.Sprint("unknown rtc message type: ", string(message)))
 	}
+	return nil
 }

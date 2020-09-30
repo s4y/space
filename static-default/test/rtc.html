@@ -210,6 +210,8 @@ class RTCTestPeer {
     this.onChange();
   }
   addTrack(track) {
+    if (!this.videoEl.srcObject)
+      return;
     const stream = this.videoEl.srcObject;
     stream.addTrack(track);
     this.videoEl.srcObject = this.videoEl.srcObject;
@@ -293,7 +295,7 @@ class RTCTestClient {
       ctx.rect(-canvas.width / 4, -canvas.height / 4, canvas.width / 2, canvas.height/2);
       ctx.fillStyle = `hsl(${now / 10 % 360}deg, 100%, 50%)`;
       ctx.fill();
-      track.requestFrame();
+      track.requestFrame && track.requestFrame();
     };
 
     setInterval(draw, 1000/60);
@@ -380,7 +382,11 @@ class RTCTestClient {
       case 'mapTrack':
         const { mid, id } = body;
         const peer = this.peers[id];
+        if (!peer)
+          return;
         // peer.clearMedia();
+        if (peer.mids.indexOf(mid) != -1)
+          return;
         peer.mids.push(mid);
         this.rtcPeer.setMidObserver(mid, track => {
           track.addEventListener('ended', e => {

@@ -97,6 +97,7 @@ export default class PlayerControls {
       let lastX = touch.pageX;
       let lastY = touch.pageY;
       const touchListener = e => {
+        e.preventDefault();
         const touch = e.targetTouches[0];
         look[0] += ((lastX - touch.pageX) / document.body.clientWidth) * 1
         look[1] += ((lastY - touch.pageY) / document.body.clientHeight) * 1;
@@ -105,7 +106,7 @@ export default class PlayerControls {
       };
       document.body.addEventListener('touchmove', touchListener)
       document.body.addEventListener('touchend', e => {
-        document.body.removeEventListener('touchmove', touchListener);
+        document.body.removeEventListener('touchmove', touchListener, { passive: false });
       }, { once: true });
     });
     topDoc.addEventListener('mouseup', e => {

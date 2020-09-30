@@ -158,15 +158,17 @@ class Room {
     this.observers.fire('clear');
   }
   mapTrack({ mid, id }) {
-    const guest = this.guests[id];
     this.rtcPeer.setMidObserver(mid, track => {
+      const guest = this.guests[id];
       guest[track.kind == 'video' ? 'videoTrack' : 'audioTrack'] = track;
       this.observers.fire('updateMedia', id, guest);
     });
   }
   handleRTC(from, message) {
     if (this.rtcPeer)
-      this.rtcPeer.receiveFromPeer(message);
+      this.rtcPeer.receiveFromPeer(message).catch(e => {
+        this.ws && this.ws.bounce();
+      });
   }
   setWhoami(whoami) {
     this.whoami = whoami;
@@ -205,16 +207,6 @@ class Room {
       this.rtcPeer.close();
     this.rtcPeer = null;
   }
-  setMediaStream(mediaStream) {
-    // TODO: use replaceTrack() instead?
-    for (const track of this.mediaStream.getTracks())
-      this.mediaStream.removeTrack(track);
-    this.mediaStream = mediaStream;
-    for (const track of mediaStream.getTracks())
-      this.mediaStream.addTrack(track);
-    if (this.rtcPeer)
-      this.rtcPeer.setMediaStream(this.mediaStream);
-  }
   setVisible(visible) {
     // console.log('setVisible:', visible, this.mediaStream.getTracks());
     // for (const track of this.mediaStream.getTracks())
@@ -239,7 +231,14 @@ onVisibilityChange();
 
 Service.get('userMedia', userMedia => {
   userMedia.observe('stream', stream => {
-    room.setMediaStream(stream);
+    for (const track of room.mediaStream.getTracks()) {
+      room.mediaStream.removeTrack(track);
+      room.rtcPeer.removeTrack(track);
+    }
+    for (const track of stream.getTracks()) {
+      room.mediaStream.addTrack(track);
+      room.rtcPeer.addTrack(track);
+    }
   });
 });
 

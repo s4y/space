@@ -30,9 +30,24 @@ export default class RTCPeer {
         obs(e.track);
     };
 
+    if (!this.mediaStream)
+      this.mediaStream = new MediaStream();
+    this.mediaStream.addEventListener("addtrack", e => {
+      this.pc.addTrack(e.track, this.mediaStream);
+    });
+    this.mediaStream.addEventListener("removetrack", e => {
+      this.pc.removeTrack(e.track, this.mediaStream);
+    });
     for (const track of this.mediaStream.getTracks())
       this.pc.addTrack(track, this.mediaStream);
-    // pc.createDataChannel("data");
+  }
+
+  addTrack(track) {
+    this.pc.addTrack(track, this.mediaStream);
+  }
+
+  removeTrack(track) {
+    this.pc.removeTrack(track, this.mediaStream);
   }
 
   setMidObserver(mid, observer) {
@@ -48,35 +63,27 @@ export default class RTCPeer {
     this.pc = null;
   }
 
-  setMediaStream(stream) {
-    this.mediaStream = stream;
-    if (!this.pc)
-      return;
-    const {pc} = this;
-    for (const track of stream.getTracks())
-      this.pc.addTrack(track, stream);
-  }
-
-  receiveFromPeer([name, value]) {
+  async receiveFromPeer([name, value]) {
     const {pc} = this;
     if (name == 'offer') {
       this.pendingOffer = value;
-      pc.setRemoteDescription(value)
-        .then(() => pc.createAnswer())
-        .then(answer => {
-          if (this.pendingOffer != value)
-            return;
-          this.pendingOffer = null;
-          pc.setLocalDescription(answer)
-            .then(() => {
-              this.sendToPeer(['answer', answer]);
-            });
-        })
-        .catch(e => {
-          console.log(e);
-          this.init();
-          this.onerror && this.onerror();
-        });
+      await pc.setRemoteDescription(value)
+      if (this.pendingOffer != value)
+        return console.log('bail 1!');
+      const answer = await pc.createAnswer();
+      if (!answer)
+        return console.log('bail a!');
+      if (this.pendingOffer != value)
+        return console.log('bail 2!');
+      this.pendingOffer = null;
+
+      if (this.tweakSDP)
+        answer.sdp = this.tweakSDP(answer.sdp);
+
+      await pc.setLocalDescription(answer);
+      this.sendToPeer(['answer', answer]);
+    } else if (name == 'map') {
+      this.midMap = value;
     } else if (name == 'icecandidate') {
       pc.addIceCandidate(value).catch(e => {
         // console.log("lol browsers amiright? https://crbug.com/935898", e);
