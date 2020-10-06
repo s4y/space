@@ -35,7 +35,7 @@ type WebRTCPartyLinePeer struct {
 	peerConnection   *webrtc.PeerConnection
 	tracks           []*webrtc.Track
 	pendingMids      []func()
-	waitingForAnswer bool
+	makingOffer      bool
 	sendAnotherOffer bool
 
 	UserInfo   uint32
@@ -109,9 +109,14 @@ func (pl *WebRTCPartyLine) AddPeer(ctx context.Context, p *WebRTCPartyLinePeer) 
 		}
 	})
 
+	p.peerConnection.OnNegotiationNeeded(func() {
+		p.tasks <- func() {
+			p.sendOffer(false)
+		}
+	})
+
 	p.peerConnection.OnTrack(func(track *webrtc.Track, receiver *webrtc.RTPReceiver) {
 		p.tasks <- func() {
-			// fmt.Println("[TODO] got track:", track.SSRC(), track.ID(), track.Label())
 			localTrack, err := p.peerConnection.NewTrack(track.PayloadType(), track.SSRC(), track.ID(), track.Label())
 			if err != nil {
 				fmt.Println("OnTrack err ", err)
@@ -175,8 +180,6 @@ func (pl *WebRTCPartyLine) AddPeer(ctx context.Context, p *WebRTCPartyLinePeer) 
 				peer.tasks <- func() {
 					if err := peer.addTrack(p, localTrack); err != nil {
 						fmt.Println("err tracking upp: ", err)
-					} else if err := peer.sendOffer(false); err != nil {
-						fmt.Println("err adding track: ", err)
 					}
 				}
 			}
@@ -226,10 +229,7 @@ func (pl *WebRTCPartyLine) AddPeer(ctx context.Context, p *WebRTCPartyLinePeer) 
 					}
 				}
 			}
-			p.sendOffer(false)
 		}
-
-		p.sendOffer(false)
 	}
 
 	return nil
@@ -250,10 +250,11 @@ func (pl *WebRTCPartyLine) RemovePeer(p *WebRTCPartyLinePeer) {
 }
 
 func (p *WebRTCPartyLinePeer) sendOffer(restartIce bool) error {
-	if p.waitingForAnswer && !restartIce {
+	if !restartIce && p.makingOffer {
 		p.sendAnotherOffer = true
 		return nil
 	}
+	p.makingOffer = true
 	var opts *webrtc.OfferOptions
 	if restartIce {
 		opts = &webrtc.OfferOptions{ICERestart: true}
@@ -266,7 +267,6 @@ func (p *WebRTCPartyLinePeer) sendOffer(restartIce bool) error {
 	if err != nil {
 		return err
 	}
-	p.waitingForAnswer = true
 	for _, f := range p.pendingMids {
 		f()
 	}
@@ -319,13 +319,13 @@ func (p *WebRTCPartyLinePeer) HandleMessage(message json.RawMessage) error {
 	case "answer":
 		var sessionDescription webrtc.SessionDescription
 		if err := json.Unmarshal(messageBody, &sessionDescription); err != nil {
-			fmt.Println("failed to unmarshal rtc offer: ", messageBody)
+			fmt.Println("failed to unmarshal rtc answer: ", messageBody)
 		}
 		p.tasks <- func() {
 			if err := p.peerConnection.SetRemoteDescription(sessionDescription); err != nil {
 				fmt.Println("failed to use answer: ", err)
 			}
-			p.waitingForAnswer = false
+			p.makingOffer = false
 			if p.sendAnotherOffer {
 				p.sendAnotherOffer = false
 				p.sendOffer(false)
@@ -341,6 +341,9 @@ func (p *WebRTCPartyLinePeer) HandleMessage(message json.RawMessage) error {
 		var candidate webrtc.ICECandidateInit
 		if err := json.Unmarshal(messageBody, &candidate); err != nil {
 			fmt.Println("failed to unmarshal ice candidate: ", messageBody)
+		}
+		if candidate.Candidate == "" {
+			return nil
 		}
 		if p.peerConnection == nil {
 			return errors.New("tried to add ice candidates w/o a peerconnection")
