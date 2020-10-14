@@ -50,6 +50,9 @@ class Player {
     velocity[2] = apply(velocity[2], acceleration[2] * 0.05, -2);
   }
   stepPhysics() {
+    const now = performance.now();
+    const delta = Math.min(500, this.lastPhysicsStep ? now - this.lastPhysicsStep : 0) * (60/1000);
+    this.lastPhysicsStep = now;
     const { position, velocity } = this;
     if (position[2] <= 0) {
       velocity[0] *= 0.9;
@@ -59,18 +62,20 @@ class Player {
     } else {
       velocity[2] -= 0.01;
     }
-    position[0] += velocity[0];
-    position[1] += velocity[1];
-    position[2] += velocity[2];
+    position[0] += velocity[0] * delta;
+    position[1] += velocity[1] * delta;
+    position[2] += velocity[2] * delta;
     this.onchange();
   }
 }
 
 class Room {
   constructor() {
+    this.ac = new (window.AudioContext || window.webkitAudioContext)();
     this.observers = new Observers();
     this.mediaStream = new MediaStream();
     this.guests = {};
+    this.isJoined = false;
 
     const onchange = () => {
       this.setNeedsUpdate();
@@ -87,6 +92,15 @@ class Room {
     if (!this.player)
       this.player = new Player(onchange);
   }
+  join() {
+    if (this.isJoined)
+      return;
+    this.isJoined = true;
+    Service.get('ws', ws => this.setWs(ws));
+    Service.get('gestureWrangler', gestureWrangler => {
+      gestureWrangler.playAudioContext(this.ac);
+    });
+  }
   setNeedsUpdate() {
     if (this.needsUpdate)
       return;
@@ -94,7 +108,7 @@ class Room {
     setTimeout(() => {
       this.needsUpdate = false;
       this.sendAndSaveStateIfChanged();
-    }, 0);
+    }, 16);
   }
   setWs(ws) {
     this.ws = ws;
@@ -144,15 +158,17 @@ class Room {
     this.observers.fire('clear');
   }
   mapTrack({ mid, id }) {
-    const guest = this.guests[id];
     this.rtcPeer.setMidObserver(mid, track => {
+      const guest = this.guests[id];
       guest[track.kind == 'video' ? 'videoTrack' : 'audioTrack'] = track;
       this.observers.fire('updateMedia', id, guest);
     });
   }
   handleRTC(from, message) {
     if (this.rtcPeer)
-      this.rtcPeer.receiveFromPeer(message);
+      this.rtcPeer.receiveFromPeer(message).catch(e => {
+        this.ws && this.ws.bounce();
+      });
   }
   setWhoami(whoami) {
     this.whoami = whoami;
@@ -182,7 +198,7 @@ class Room {
       },
       mediaStream: this.mediaStream,
       onerror() {
-        this.ws.bounce();
+        this.ws && this.ws.bounce();
       }
     });
   }
@@ -190,16 +206,6 @@ class Room {
     if (this.rtcPeer)
       this.rtcPeer.close();
     this.rtcPeer = null;
-  }
-  setMediaStream(mediaStream) {
-    // TODO: use replaceTrack() instead?
-    for (const track of this.mediaStream.getTracks())
-      this.mediaStream.removeTrack(track);
-    this.mediaStream = mediaStream;
-    for (const track of mediaStream.getTracks())
-      this.mediaStream.addTrack(track);
-    if (this.rtcPeer)
-      this.rtcPeer.setMediaStream(this.mediaStream);
   }
   setVisible(visible) {
     // console.log('setVisible:', visible, this.mediaStream.getTracks());
@@ -225,11 +231,16 @@ onVisibilityChange();
 
 Service.get('userMedia', userMedia => {
   userMedia.observe('stream', stream => {
-    room.setMediaStream(stream);
+    for (const track of room.mediaStream.getTracks()) {
+      room.mediaStream.removeTrack(track);
+      room.rtcPeer.removeTrack(track);
+    }
+    for (const track of stream.getTracks()) {
+      room.mediaStream.addTrack(track);
+      room.rtcPeer.addTrack(track);
+    }
   });
 });
-
-Service.get('ws', ws => room.setWs(ws));
 
 Service.get('docent', docent => {
   docent.observe('reconnect', what => {
@@ -242,8 +253,14 @@ class RoomClient {
   constructor(context) {
     this.context = context;
   }
+  join() {
+    return room.join();
+  }
   observe(key, cb) {
     return room.observers.add(key, this.context, cb);
+  }
+  get ac() {
+    return room.ac;
   }
   get player() {
     return room.player;

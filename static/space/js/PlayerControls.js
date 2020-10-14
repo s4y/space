@@ -26,11 +26,7 @@ export default class PlayerControls {
         z += dir[1];
         y += dir[2];
       }
-      const accel = [
-        x * Math.cos(look[0]) + z * Math.sin(look[0]),
-        z * Math.cos(-look[0]) + x * Math.sin(-look[0]),
-        y,
-      ];
+      const accel = this.adjustAccelerationForLook(x, z, y);
       const mag = Math.sqrt(Math.pow(accel[0], 2) + Math.pow(accel[1], 2));
       this.acceleration[0] = accel[0] / mag || 0;
       this.acceleration[1] = accel[1] / mag || 0;
@@ -76,10 +72,13 @@ export default class PlayerControls {
         return;
       topDoc.body.removeEventListener('mousemove', moveListener);
       if (topDoc.pointerLockElement)
-        window.top.topDoc.exitPointerLock();
+        topDoc.exitPointerLock();
+      for (const k in keysDown)
+        keysDown[k] = false;
+      updateAcceleration();
     }
     window.addEventListener('mousedown', e => {
-      if (e.target != document.documentElement)
+      if (e.target != document.body && !('clickThrough' in e.target.dataset))
         return;
       window.top.focus();
       e.preventDefault();
@@ -88,7 +87,29 @@ export default class PlayerControls {
       isMoving = true;
       mouseDownTime = performance.now();
     });
-    window.addEventListener('mouseup', e => {
+    topDoc.addEventListener('mousedown', e => {
+      cancel();
+    });
+    document.body.addEventListener('touchstart', e => {
+      e.preventDefault();
+      const { look } = this.player;
+      const touch = e.targetTouches[0];
+      let lastX = touch.pageX;
+      let lastY = touch.pageY;
+      const touchListener = e => {
+        e.preventDefault();
+        const touch = e.targetTouches[0];
+        look[0] += ((lastX - touch.pageX) / document.body.clientWidth) * 1
+        look[1] += ((lastY - touch.pageY) / document.body.clientHeight) * 1;
+        lastX = touch.pageX;
+        lastY = touch.pageY;
+      };
+      document.body.addEventListener('touchmove', touchListener)
+      document.body.addEventListener('touchend', e => {
+        document.body.removeEventListener('touchmove', touchListener, { passive: false });
+      }, { once: true });
+    });
+    topDoc.addEventListener('mouseup', e => {
       if (performance.now() - mouseDownTime > 250)
         cancel();
     });
@@ -98,6 +119,15 @@ export default class PlayerControls {
     });
     if (topDoc.pointerLockElement)
       topDoc.body.addEventListener('mousemove', moveListener);
+  }
+
+  adjustAccelerationForLook(x, z, y) {
+    const { look } = this.player;
+    return [
+      x * Math.cos(look[0]) + z * Math.sin(look[0]),
+      z * Math.cos(-look[0]) + x * Math.sin(-look[0]),
+      y,
+    ];
   }
 };
 

@@ -1,6 +1,8 @@
 <!DOCTYPE html>
+<link rel=stylesheet href=style.css>
 <body>
 <button type=button onclick="adminAction('reload', '/party/')">Reload renderer</button>
+<button type=button onclick="adminAction('reload', '/space/services/room.html')">Reload room</button>
 <button type=button onclick="adminAction('reload', '/party/overlay.html')">Reload overlay</button>
 <button type=button onclick="adminAction('reload', '/')">Reload everything</button>
 <!--<button type=button onclick="adminAction('reconnect', 'webrtc')">Reconnect WebRTC</button>-->
@@ -14,6 +16,7 @@
     <span data-key=label></span>
   </li>
 </template>
+<ul id=guests></ul>
 <script type=module>
    import {init} from '/hmlt/setBuilder.js'
 
@@ -79,6 +82,13 @@ const knobs = window.knobs = new Knobs({
   'world.motion': { min: 0, max: 1 },
   'world.nightness': { min: 0, max: 1 },
   'physics.jumpStrength': { min: 0, max: 5 },
+  'physics.walkSpeed': { min: 0.5, max: 5 },
+  'chromaKey.hue': { min: 0, max: 1 },
+  'chromaKey.hueSlop': { min: 0, max: 1 },
+  'chromaKey.huePow': { min: 1, max: 30 },
+  'chromaKey.satSlop': { min: 0, max: 1 },
+  'chromaKey.satPow': { min: 1, max: 30 },
+  'chromaKey.edgeCorrection': { min: 0, max: 1 },
 });
 
 let conn;
@@ -123,6 +133,40 @@ try {
   console.log('doot', e);
 }
 
+const guestViews = {};
+
+class GuestView {
+  constructor(id) {
+    this.el = document.createElement('li');
+
+    this.idEl = document.createElement('div');
+    this.idEl.textContent = id;
+    this.idEl.classList.add('guestId');
+    this.el.appendChild(this.idEl);
+
+    this.fpsEl = document.createElement('div');
+    this.fpsEl.classList.add('fps');
+    this.el.appendChild(this.fpsEl);
+  }
+  updateDebug(debug) {
+    if (debug.fps) {
+      this.fpsEl.textContent = debug.fps.toFixed(0);
+      this.fpsEl.classList.remove('unfresh');
+      this.fpsEl.offsetWidth;
+      this.fpsEl.classList.add('unfresh');
+    }
+  }
+}
+
+const getGuestView = id => {
+  let guest = guestViews[id];
+  if (!guest) {
+    guest = guestViews[id] = new GuestView(id);
+    guests.appendChild(guest.el);
+  }
+  return guest;
+};
+
 const connectWs = () => {
   const ws = new WebSocket(`${location.protocol == 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
 
@@ -132,7 +176,30 @@ const connectWs = () => {
   ws.onmessage = e => {
     const message = JSON.parse(e.data);
     const {type, body} = message;
-    console.log('message', type, body);
+    switch (type) {
+      case "guestUpdate": {
+        const { id } = body;
+        const guest = getGuestView(id);
+        }
+        break;
+      case "guestDebug": {
+        const { id, debug } = body;
+        const guest = getGuestView(id);
+        guest.updateDebug(debug);
+        }
+        break;
+      case "guestLeaving": {
+        const { id } = body;
+        const guest = guestViews[id];
+        if (guest) {
+          guests.removeChild(guest.el);
+          delete guests[id];
+        }
+        }
+        break;
+      default:
+        console.log('message', type, body);
+    }
   };
   ws.onopen = e => {
     for (const k in knobs.knobs)

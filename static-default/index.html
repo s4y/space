@@ -91,19 +91,19 @@ const prepSplash = () => {
       splashFrame.style.pointerEvents = 'none';
       splashFrame.blur();
 
-      splashFrame.style.transition = 'background 4s ease-out, backdrop-filter 4s ease-in-out';
-      doc.body.style.transition = 'transform 4s linear';
-      doc.body.style.transformOrigin = 'center -50%';
-      doc.body.style.transform = 'perspective(100vw) translateZ(-100vw) rotateX(90deg)';
-
       setTimeout(() => {
+        splashFrame.style.transition = 'background 4s ease-in, backdrop-filter 4s ease-in, opacity 1s ease-in';
         splashFrame.style.background = 'transparent';
         splashFrame.style.backdropFilter = '';
-      }, 2000);
+      }, 100);
+
+      setTimeout(() => {
+        splashFrame.style.opacity = '0';
+      }, 3500);
 
       setTimeout(() => {
         splashFrame.parentNode.removeChild(splashFrame);
-      }, 7000);
+      }, 5000);
     });
 
     gestureWrangler.onGesture();

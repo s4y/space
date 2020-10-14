@@ -11,7 +11,6 @@ body {
   font-size: 14px;
 
   margin: 0;
-  pointer-events: none;
 }
 
 #videoMutedEl, #audioMutedEl {
@@ -29,133 +28,71 @@ body {
 }
 
 #chat {
-  width: 100%;
-  max-width: 432px;
-  height: 100%;
-
-  display: flex;
-  flex-direction: column;
-
-  position: relative;
-  overflow: hidden;
-}
-
-#messages {
-  list-style-type: none;
-
-  color: #fff;
-  font-family: Helvetica, Arial, sans-serif;
-
-  margin: 0;
-  padding: 0;
-
-  position: relative;
-  overflow: scroll;
-
-  flex: 0 1 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.message {
-  border-radius: 18px;
-  box-sizing: border-box;
-
-  min-width: 36px;
-  max-width: 70%;
-
-  margin: 4px 16px;
-  padding: 10px 12px;
-
-  display: inline-flex;
-  flex-direction: column;
-  justify-content: center;
-
-  line-height: 1;
-
   position: absolute;
+  bottom: 2em;
+  left: 1em;
+  top: 0;
+  width: calc(100% - 2em);
+  max-width: 30em;
+  color: white;
+  display: flex;
+  flex-direction: column;
 }
 
-.message > p {
+#chat > ul {
+  list-style: none;
+  padding: 0;
   margin: 0;
-  word-wrap: break-word;
+  overflow: auto;
+  pointer-events: none;
+  flex: 1;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-start;
 }
 
-.self {
+#chat > ul > li {
+  padding: 0.5em 0.75em;;
+  border-radius: 1em;
+  margin: 0.25em;
+  background: rgba(100, 100, 100, 0.6);
+}
+
+#chat > ul > li.self {
   align-self: flex-end;
 }
 
-.other {
-  align-self: flex-start;
+#chatForm {
+  margin-top: 0.5em;
 }
 
-#sentinel {
-  position: absolute;
+#chatForm > input {
+  background: none;
+  font: inherit;
+  color: inherit;
+  outline: none;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 0.75em;
   width: 100%;
-  height: 1px;
+  box-sizing: border-box;
+  padding: 0.5em;
 }
 
-#newMessage {
-  margin: 8px;
-  padding: 3px;
+#chatForm > input:focus {
+  border-color: white;
+}
 
-  flex: 0 0 auto;
+#touchmove {
+  height: 25%;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 1em;
   display: flex;
   align-items: center;
   justify-content: center;
-
-  border: 1px solid #fff;
-  border-radius: 24px;
-
-  pointer-events: auto;
-}
-
-#newMessage > input {
-  border: none;
-  border-radius: 10px 0 0 10px;
-  font-size: 24px;
-
-  color: #fff;
-  background: transparent;
-
-  margin-right: 4px;
-  padding: 0 10px;
-
-  flex: 1 1 auto;
-
-  outline: 0;
-}
-
-#newMessage > button {
-  border: none;
-  border-radius: 20px;
-  font-size: 28px;
-
-  color: #444;
-  background: #fff;
-
-  width: 40px;
-  height: 40px;
-
-  flex: 0 0 auto;
-}
-
-#newMessage > button:disabled {
-  opacity: 0.35;
-}
-
-/* downplay the chat interface when it's not focused */
-#chat { opacity: 0.35; }
-#messages {
-  pointer-events: none;
-  visibility: hidden;
-}
-
-/* make it work when it's children are focused */
-#chat:focus-within { opacity: 1; }
-#chat:focus-within #messages {
-  /* pointer-events: all; */
-  visibility: visible;
+  border-radius: 0.25em;
+  text-align: center;
+  padding: 1em;
 }
 
 </style>
@@ -163,15 +100,11 @@ body {
 <div id=videoMutedEl style="display: none">Camera off</div>
 <div id=audioMutedEl style="display: none">Microphone off</div>
 <video muted id=preview playsinline></video>
-
 <div id=chat>
-  <ul id=messages><li id=sentinel></li></ul>
-  <form action=# id=newMessage autocomplete=off>
-    <input type=text name=message>
-    <button type=submit name=send disabled>↑</button>
-  </form>
+  <ul data-click-through></ul>
+  <form id=chatForm><input name=message autocomplete=off></form>
+  <div id=touchmove style="display: none">Drag here to move.<br>Drag anywhere else to look around.</div>
 </div>
-
 <script type=module>
 
 import Service from '/space/js/Service.js'
@@ -180,8 +113,34 @@ import PlayerControls from '/space/js/PlayerControls.js'
 let player;
 const controls = new PlayerControls();
 
+let touchAcceleration = [0, 0, 0];
+if ('ontouchstart' in window) {
+  touchmove.style.display = '';
+  let startX;
+  let startY;
+  touchmove.addEventListener('touchstart', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    startX = e.targetTouches[0].pageX;
+    startY = e.targetTouches[0].pageY;
+  });
+  touchmove.addEventListener('touchend', e => {
+    touchAcceleration = [0, 0];
+  });
+  touchmove.addEventListener('touchmove', e => {
+    const touch = e.targetTouches[0];
+    e.preventDefault();
+    e.stopPropagation();
+    touchAcceleration[0] = (startX - touch.pageX) * -0.01;
+    touchAcceleration[1] = (startY - touch.pageY) * 0.01;
+  });
+}
+
 requestAnimationFrame(function applyAcceleration() {
-  player && player.applyAcceleration(controls.acceleration);
+  if (player) {
+    player.applyAcceleration(controls.acceleration);
+    player.applyAcceleration(controls.adjustAccelerationForLook(...touchAcceleration));
+  };
   requestAnimationFrame(applyAcceleration);
 });
 
@@ -191,7 +150,7 @@ topDoc.addEventListener('pointerlockchange', e => {
     document.documentElement.classList.add('pointerLocked');
   else {
     document.documentElement.classList.remove('pointerLocked');
-    document.querySelector('#chat input').focus();
+    // document.querySelector('#chat input').focus();
   }
 });
 
@@ -218,63 +177,22 @@ Service.get('userMedia', userMedia => {
   });
 });
 
-/**
- * helpers for measuring stuff
- */
-const { getComputedStyle: getStyle } = window;
-
-// (el: HTMLElement) => number
-const outerTop = (el) => {
-  const { marginTop } = getStyle(el);
-  return el.offsetTop - parseInt(marginTop, 10);
-};
-
-// (el: HTMLElement) => number
-const outerHeight = (el) => {
-  const { marginTop, height, marginBottom } = getStyle(el);
-  return [marginTop, height, marginBottom].reduce(
-    (acc, px) => acc + parseInt(px, 10),
-    0,
-  );
-};
-
-/**
- * view state for the chat interface
- */
-let messagesHeight = messages.clientHeight;
-
-// init the sentinel at the "bottom" of the messages content box
-sentinel.style.top = `${messagesHeight}px`;
-
 Service.get('chat', chat => {
+  const messages = document.querySelector("#chat > ul");
   chat.observe('message', ({from, message}) => {
     const li = document.createElement('li');
     li.classList.add('message', from === chat.whoami ? 'self' : 'other');
+    li.textContent = message;
 
-    const p = document.createElement('p');
-    p.textContent = message;
-    li.appendChild(p);
-
-    messages.insertBefore(li, sentinel);
-
-    // set the new message to the current "bottom" of the message content box
-    li.style.top = `${messagesHeight + outerTop(li)}px`;
-    messagesHeight += outerHeight(li);
-
-    // update the sentinel
-    sentinel.style.top = `${messagesHeight}px`;
-    sentinel.scrollIntoView({ behavior: 'smooth' });
+    messages.insertBefore(li, messages.firstChild);
+    li.scrollIntoView();
   });
 
-  newMessage.addEventListener('submit', (event) => {
+  chatForm.addEventListener('submit', (event) => {
     event.preventDefault();
-    chat.addMessage(newMessage.message.value);
+    chat.addMessage(chatForm.message.value);
 
-    newMessage.message.value = '';
-  });
-
-  newMessage.message.addEventListener('input', event => {
-    newMessage.send.disabled = event.target.value === '';
+    chatForm.message.value = '';
   });
 });
 

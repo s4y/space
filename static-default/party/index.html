@@ -9,6 +9,7 @@
 
 import * as THREE from '/deps/three/build/three.module.js'
 import { GLTFLoader } from '/deps/three/examples/jsm/loaders/GLTFLoader.js'
+import { BufferGeometryUtils } from '/deps/three/examples/jsm/utils/BufferGeometryUtils.js'
 import Service from '/space/js/Service.js'
 import RTCPeer from '/space/js/RTCPeer.js'
 import {initBuilder} from '/hmlt/setBuilder.js'
@@ -23,96 +24,68 @@ const hqs = location.hash
   .map(c => c.split('=').map(decodeURIComponent))
   .reduce((params, [k, v]) => (params[k] = v, params), {});
 
-const createSky = () => {
-  const skyMaterial = new THREE.ShaderMaterial( {
-    side: THREE.BackSide,
-    uniforms: {
-      t: { value: 0 },
-    },
-    vertexShader: `
-      varying vec2 p;
-
-      void main() {
-        p = uv*2.-1.;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
-      }
-    `,
-
-    fragmentShader: `
-      #include <common>
-
-      // https://thebookofshaders.com/10/
-      float random( vec2 p )
-      {
-        vec2 K1 = vec2(
-        23.14069263277926, // e^pi (Gelfond's constant)
-        2.665144142690225 // 2^sqrt(2) (Gelfond–Schneider constant)
-      );
-        return fract( cos( dot(p,K1) ) * 12345.6789 );
-      }
-
-      varying vec2 p;
-      uniform float t;
-      void main() {
-        vec2 pp = p;
-        // pp.x /= sin(pp.y);
-        // pp += (look * vec3(1, 1, 1) * 2. - 0.5).xy;
-        // vec2 pp = vec2(atan(p.y, p.x), distance(p, vec2(0.0)));
-        // p.x = atan(p.y, p.x);
-        // p.y = op.y;
-        // p.y = length(op);
-
-        // float lat = Ip.y/2.+.5) * PI;
-        // float lon = Ip.x/2.+.5) * PI * 2.;
-        // vec3 p3 = vec3(sin(lat)*cos(lon), sin(lat)*sin(lon), cos(lat));
-
-
-        // float lon = (p.x/2.+.5)*2.*PI;
-        // float lat = (p.y/2.+.5)*2.*PI;
-        // vec3 p3 = vec3(cos(lon)*cos(lat), sin(lon)*cos(lat), sin(lat));
-
-        vec2 ll = vec2(
-          (p.x / 2. + 0.5) * PI,
-          (p.y / 2. + 0.5) * 2. * PI
-          // cos((p.x/2.+.5)*PI*2.)*(p.y/2.+.5),
-          // sin((p.x/2.+.5)*PI*2.)*(p.y/2.+.5)
-          );
-
-        vec3 p3 = vec3(sin(ll.x) * cos(ll.y), sin(ll.x) * sin(ll.y), cos(ll.x));;
-        // p3 *= 2.;
-
-        p3.z += t / 100.;
-
-        pp = p3.yz*2.-1.;
-        // pp.x /= 4.;
-        // pp = mod(pp, 0.5);
-
-        vec2 nearP = pp - mod(pp, 0.1);
-        gl_FragColor = vec4(clamp(step(random(nearP), 0.5) * (1. - distance(pp, nearP + 0.05) * 200.), 0., 1.));
-        gl_FragColor += max(gl_FragColor, clamp(1. - ll.y - 0.5, 0., 1.));
-        // gl_FragColor = vec4(abs(p3), 1.);
-        // gl_FragColor = vec4(p3.yz, 0., 1.);
-        // gl_FragColor = vec4(pp, 0., 1.);
-        // gl_FragColor = vec4(pp, 0., 1.);
-      }
-    `,
-  });
-
-  const sky = new THREE.Mesh(
-    new THREE.SphereBufferGeometry(1000, 32, 32, 0, 2 * Math.PI, 0, 0.5 * Math.PI),
-    skyMaterial);
-  sky.onBeforeRender = () => {
-    sky.material.uniforms.t.value = performance.now() / 1000;
-  };
-
+const createStatsTracker = () => {
+  let ws;
+  Service.get('ws', x => ws = x);
   return {
-    obj: sky,
+    frames: null,
+    startTime: null,
+    begin() {
+      if (!this.startTime) {
+        this.startTime = +new Date();
+        this.frames = 0;
+        setTimeout(() => {
+          const delta = +new Date() - this.startTime;
+          const fps = this.frames / (delta / 1000)
+          try {
+          ws.send({ type: "debug.fps", body: fps });
+          } catch(e) {}
+          this.startTime = null;
+        }, 1000);
+      }
+      this.frames++;
+    },
+    end() {
+    }
   };
+};
+const stats = createStatsTracker();
+
+// Based on code by Adam Quinn (https://github.com/agquinn01)
+const createSky = () => {
+  const sky = new THREE.Group();
+  for (let i = 0; i < 8; i++) {
+    const opacity = Math.random() * 0.75 + 0.25;
+    const starGeometries = [];
+    for (let j = 0; j < 200; j++){
+      const starGeometry = new THREE.SphereBufferGeometry(Math.random() * 1.5 + 0.5);
+      const angle = Math.random() * Math.PI * 2;
+      const distanceFromCenter = Math.random() * 2000;
+      starGeometry.translate(
+        Math.cos(angle) * distanceFromCenter,
+        Math.random() * 107,
+        Math.sin(angle) * distanceFromCenter,
+      );
+      starGeometries.push(starGeometry);
+    }
+
+    const starMaterial = new THREE.MeshBasicMaterial( {color: 0xffff00, transparent: true } );
+    const starGroup = new THREE.Mesh(BufferGeometryUtils.mergeBufferGeometries(starGeometries), starMaterial);
+
+    starGroup.onBeforeRender = () => {
+      starMaterial.opacity = (opacity + motion * (Math.sin(performance.now() / 1000 + i / 2.) * 0.5));
+    };
+
+    sky.add(starGroup);
+  }
+  sky.position.y = 500;
+  return sky;
 };
 
 const buildGlRoom = (canvas, config) => {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(60);
+  camera.far = 10000;
   camera.rotation.order = 'YXZ';
 
   const listener = new THREE.AudioListener();
@@ -127,15 +100,6 @@ const buildGlRoom = (canvas, config) => {
       listener.gain.connect(loopbackDestination);
       loopbackEl.srcObject = loopback.outputStream;
       gestureWrangler.playVideo(loopbackEl);
-
-      Service.get('music', music => {
-        window.top.music = music;
-        const musicDestination = music.ac.createMediaStreamDestination();
-        const localMusicSource = listener.context.createMediaStreamSource(musicDestination.stream);
-        music.musicGain.disconnect();
-        music.musicGain.connect(musicDestination);
-        localMusicSource.connect(loopbackDestination);
-      });
     });
 
     loopback.setInputStream(loopbackDestination.stream);
@@ -149,6 +113,7 @@ const buildGlRoom = (canvas, config) => {
     antialias: true,
     powerPreference: 'high-performance',
   });
+  renderer.setClearColor(new THREE.Color().setHSL(0.5, 0.7, 0.01), 1);
   renderer.physicallyCorrectLights = true;
 
   const hemiLight = new THREE.HemisphereLight( 0x7FBBFF, 0x34002D, 1 );
@@ -161,7 +126,7 @@ const buildGlRoom = (canvas, config) => {
     { p: [0, 1, -10], power: 1000 },
     { p: [0, 7, 0], power: 2000 },
   ]) {
-    const light = new THREE.PointLight(0xffffff, 100);
+    const light = new THREE.PointLight(0xffffff, 100, 50);
     light.power = props.power;
     light.decay = 2;
     light.position.set(...props.p);
@@ -171,13 +136,12 @@ const buildGlRoom = (canvas, config) => {
   const guests = {};
   let mediaStream = null;
 
-  const sky = createSky();
-  scene.add(sky.obj);
+  scene.add(createSky());
 
   const updateBalloons = [];
   const balloonGeometry = new THREE.IcosahedronBufferGeometry(5, 0);
   for (let i = 0; i < 10; i++) {
-    const rowLight = new THREE.PointLight(0xffffff, 100);
+    const rowLight = new THREE.PointLight(0xffffff, 100, 50);
     rowLight.power = 2000;
     rowLight.decay = 2;
     rowLight.position.y = -10;
@@ -201,7 +165,7 @@ const buildGlRoom = (canvas, config) => {
   }
 
   const floor = new THREE.Mesh(
-    new THREE.PlaneBufferGeometry(2000, 2000),
+    new THREE.CircleBufferGeometry(100000),
     new THREE.MeshPhongMaterial( {
       color: 0x222222,
       emissive: 0x221122,
@@ -210,6 +174,7 @@ const buildGlRoom = (canvas, config) => {
   floor.rotation.x = -Math.PI / 2;
   floor.rotation.order = 'YXZ';
   scene.add(floor);
+  initBuilder(scene,camera,renderer)
 
   //GLTF LOADER
   let mixer;
@@ -229,7 +194,6 @@ const buildGlRoom = (canvas, config) => {
     });
 
   });
-    initBuilder(scene,camera,renderer)
 
   /*let mixer;
   let loader = new THREE.GLTFLoader();
@@ -252,12 +216,6 @@ const buildGlRoom = (canvas, config) => {
       canvas.clientHeight * devicePixelRatio, false);
     camera.aspect = canvas.width / canvas.height;
     camera.updateProjectionMatrix();
-
-    // // https://stackoverflow.com/questions/13350875/three-js-width-of-view/13351534#13351534
-    // var vFOV = THREE.MathUtils.degToRad( camera.fov );
-    // var height = 2 * Math.tan( vFOV / 2 ) * sky.position.z;
-    // var width = height * camera.aspect;
-    // sky.geometry = new THREE.PlaneGeometry(-width, -height);
   };
   window.addEventListener('resize', resize);
 
@@ -376,10 +334,16 @@ const buildGlRoom = (canvas, config) => {
         const stream = tracks.length ? new MediaStream(tracks) : null;
         videoEl.srcObject = stream;
         gestureWrangler.playVideo(videoEl);
-        if (audioTrack)
-          posSound.setMediaStreamSource(stream);
-        else if (posSound.source)
+        if (audioTrack) {
+          try {
+            posSound.setMediaStreamSource(stream);
+          } catch (e) {
+            console.log(e);
+            videoEl.muted = false;
+          }
+        } else if (posSound.source) {
           posSound.disconnect();
+        }
     };
 
     const ret = (guests[id] = {
@@ -401,10 +365,25 @@ const buildGlRoom = (canvas, config) => {
     ret.videoTrack = remoteGuest.videoTrack;
     ret.audioTrack = remoteGuest.audioTrack;
 
+    if (joinSound) {
+      const joinSource = THREE.AudioContext.getContext().createBufferSource();
+      joinSource.buffer = joinSound;
+      joinSource.connect(posSound.getOutput());
+      setTimeout(() => {
+        joinSource.start();
+      }, 1000);
+    }
+
     return ret;
   };
 
+  let projectorId = null;
+
   const updateGuest = (id, remoteGuest) => {
+    if (remoteGuest.state.role == 'cast') {
+      projectorId = id;
+      return;
+    }
     const guest = getOrCreateGuest(id, remoteGuest);
     const { state } = remoteGuest;
     guest.head.rotation.y = -state.look[0];
@@ -416,10 +395,12 @@ const buildGlRoom = (canvas, config) => {
   }
 
   const updateMedia = (id, { videoTrack, audioTrack }) => {
-    // console.log('updating media for guest', id, videoTrack, audioTrack);
+    if (id == projectorId) {
+      projector.setStream(new MediaStream([videoTrack, audioTrack].filter(t => t)));
+      return;
+    }
     const guest = guests[id];
     if (!guest) {
-      console.log('updating media for unknown guest', id);
       return;
     }
     guest.videoTrack = videoTrack;
@@ -430,6 +411,14 @@ const buildGlRoom = (canvas, config) => {
     const guest = guests[id];
     if (!guest)
       return;
+
+    if (partSound) {
+      const partSource = THREE.AudioContext.getContext().createBufferSource();
+      partSource.buffer = partSound;
+      partSource.connect(guest.posSound.getOutput());
+      partSource.start();
+    }
+
     scene.remove(guest.group);
     delete guests[id];
   };
@@ -453,16 +442,71 @@ const buildGlRoom = (canvas, config) => {
 
   const byteFreqData = new Uint8Array(1024);
 
+  const createProjector = (size) => {
+    const group = new THREE.Group();
+    const mesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(size * (16/9), size));
+    mesh.position.y = size/2;
+    group.add(mesh);
+
+    const light = new THREE.PointLight(0xffffff, 100, size + 30);
+    light.position.z = 30;
+    light.position.y = size/2;
+    group.add(light);
+      
+    const posSound = new THREE.PositionalAudio(listener);
+    posSound.setRefDistance(10);
+    posSound.setRolloffFactor(1.5);
+    posSound.setDistanceModel('exponential');
+    posSound.setDirectionalCone(120, 230, 0.2);
+    posSound.rotation.y = Math.PI;
+    mesh.add(posSound);
+
+    const videoEl = document.createElement('video');
+    videoEl.playsInline = true;
+    videoEl.muted = true;
+    posSound.setMediaElementSource(videoEl);
+
+    const videoTexture = new THREE.VideoTexture(videoEl);
+    videoTexture.minFilter = THREE.LinearFilter;
+    videoTexture.magFilter = THREE.LinearFilter;
+    videoTexture.format = THREE.RGBFormat;
+    // videoTexture.offset.set(-0.25, 0);
+    mesh.material = new THREE.MeshPhongMaterial({
+      color:0xffffff,
+      side: THREE.DoubleSide,
+      map: videoTexture,
+    });
+    // videoEl.addEventListener('playing', () => {
+    //   videoPanel.material.uniforms.aspect.value = videoEl.videoWidth / videoEl.videoHeight;
+    //   head.add(videoPanel);
+    // });
+    // videoEl.addEventListener('paused', () => {
+    //   head.remove(videoPanel);
+    // });
+
+    scene.add(group);
+    return {
+      group,
+      setStream: stream => {
+        videoEl.srcObject = stream;
+        gestureWrangler.playVideo(videoEl);
+        posSound.setMediaStreamSource(stream);
+        posSound.source.connect(musicAnalyser);
+      }
+    };
+  };
+
+  let projector = createProjector(40);
+  projector.group.position.z = -75;
+  projector.group.position.x = -180;
+  projector.group.rotation.y = Math.PI / 2;
+
   const draw = ({ now, look, position }) => {
     camera.position.x = position[0];
     camera.position.z = -position[1];
     camera.position.y = 6 + position[2];
     camera.rotation.y = -look[0];
     camera.rotation.x = -look[1];
-
-    sky.obj.position.x = floor.position.x = camera.position.x;
-    sky.obj.position.z = floor.position.z = camera.position.z;
-    floor.rotation.y = camera.rotation.y;
 
     if (musicAnalyser)
       musicAnalyser.getByteFrequencyData(byteFreqData);
@@ -479,7 +523,6 @@ const buildGlRoom = (canvas, config) => {
 
     updateBalloons.forEach(f => f(now, byteFreqData));
 
-    renderer.setClearColor(new THREE.Color().setHSL(0.5, 0.7, 0.01), 1);
     renderer.render(scene, camera);
   };
 
@@ -532,16 +575,20 @@ const buildRoom = (el, config) => {
     return true;
   };
   const draw = rawNow => {
+    stats && stats.begin();
     const now = rawNow + timeOffset;
     player.stepPhysics();
     const { position, look } = player;
     glRoom.draw({ now, position, look });
+    stats && stats.end();
     animationFrame = requestAnimationFrame(draw);
   };
 
   Service.get('room', room => {
+    const ac = room.ac;
     player = room.player;
 
+    room.join();
     room.observe('update', (id, state) => {
       if (state)
         glRoom.updateGuest(id, state);
@@ -564,6 +611,20 @@ const buildRoom = (el, config) => {
     if (!animationFrame)
       animationFrame = requestAnimationFrame(draw);
 
+    fetch('/sounds/join.mp3')
+      .then(r => r.arrayBuffer())
+      .then(ab => ac.decodeAudioData(ab))
+      .then(buf => {
+        joinSound = buf;
+      });
+
+    fetch('/sounds/part.mp3')
+      .then(r => r.arrayBuffer())
+      .then(ab => ac.decodeAudioData(ab))
+      .then(buf => {
+        partSound = buf;
+      });
+
   });
 
   return ret;
@@ -575,12 +636,10 @@ let musicAnalyser;
 let musicReactivity = 0;
 let motion = 0;
 
+let joinSound;
+let partSound;
 
 const start = () => {
-  Service.get('music', music => {
-    musicAnalyser = music.analyser;
-  });
-
   Service.get('knobs', knobs => {
     knobs.observe('world.musicReactivity', v => {
       musicReactivity = v;
@@ -618,7 +677,16 @@ const start = () => {
     .then(r => r.json())
     .then(config => {
       timeOffset = new Date() - config.zeroTime
-      const room = buildRoom(document.getElementById('room'), config);
+
+      let builtRoom = false;
+      Service.get('room', room => {
+        THREE.AudioContext.setContext(room.ac);
+        musicAnalyser = room.ac.createAnalyser();
+        if (!builtRoom) {
+          buildRoom(document.getElementById('room'), config);
+          builtRoom = true;
+        }
+      });
     })
 };
 

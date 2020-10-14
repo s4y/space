@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<meta name=viewport content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<style>
+
+#serviceFrames {
+  display: none;
+}
+
+</style>
+<select id=videoDevices></select>
+<select id=audioDevices></select>
+<button id=castCamera>Cast camera</button>
+<button id=castScreen>Cast screen</button>
+<button id=stopCasting>Stop</button>
+<video id=preview autoplay muted controls playsinline style="max-width:100vw; display: block;"></video>
+<div id=serviceFrames></div>
+<script type=module>
+
+import Service from '/space/js/Service.js';
+import RTCPeer from '/space/js/RTCPeer.js'
+
+Service.setHost(serviceFrames);
+
+let mediaStream = new MediaStream();
+let rtcPeer = null;
+
+Service.get('ws', ws => {
+  ws.observe('open', () => {
+    ws.send({
+      type: "join",
+      body: {
+        role: 'cast',
+      }
+    });
+
+    if (rtcPeer)
+      rtcPeer.close();
+    rtcPeer = new RTCPeer({
+      sendToPeer: message => {
+        ws.send({
+          type: "rtc",
+          body: { to: 0, message },
+        });
+      },
+      mediaStream,
+      tweakSDP: sdp => sdp.replace('useinbandfec=1', 'useinbandfec=1; stereo=1'),
+      onerror() {
+        ws.bounce();
+      },
+    });
+  });
+
+  ws.observe('rtc', ({ from, message }) => {
+    if (rtcPeer)
+      rtcPeer.receiveFromPeer(message);
+  });
+});
+
+class DeviceList {
+  constructor(el, sessionStorageKey) {
+    this.el = el;
+    this.sessionStorageKey = sessionStorageKey;
+    this.selectedDeviceId = sessionStorage[sessionStorageKey];
+    this.el.addEventListener('change', e => {
+      this.updateSelection();
+    });
+  }
+
+  updateSelection() {
+    this.selectedDeviceId
+      = sessionStorage[this.sessionStorageKey]
+      = this.el.value;
+  }
+
+
+  setDevices(devices) {
+    while (this.el.firstChild)
+      this.el.removeChild(this.el.firstChild);
+    for (const device of devices) {
+      const option = document.createElement('option');
+      option.textContent = device.label;
+      option.value = device.deviceId;
+      if (device.deviceId == this.selectedDeviceId)
+        option.selected = true;
+      this.el.appendChild(option);
+    }
+    this.updateSelection();
+  }
+}
+
+const videoDevices = new DeviceList(document.getElementById('videoDevices'), 'videoCastDevice');
+const audioDevices = new DeviceList(document.getElementById('audioDevices'), 'audioCastDevice');
+
+const refreshDeviceList = () => {
+  navigator.mediaDevices.enumerateDevices()
+    .then(devs => {
+      videoDevices.setDevices(devs.filter(d => d.kind == 'videoinput'));
+      audioDevices.setDevices(devs.filter(d => d.kind == 'audioinput'));
+    });
+};
+
+navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+  .then(s => {
+    for (const track of s.getTracks())
+      track.stop();
+    refreshDeviceList();
+    navigator.mediaDevices.addEventListener('devicechange', refreshDeviceList);
+  });
+
+const stop = () => {
+  for (const track of mediaStream.getTracks()) {
+    track.stop();
+    mediaStream.removeTrack(track);
+  }
+}
+
+castCamera.addEventListener('click', e => {
+  e.preventDefault();
+  stop();
+  const videoConstraints = {
+    width: 1280,
+    aspectRatio: 1920/1080,
+  };
+  if (videoDevices.selectedDeviceId)
+    videoConstraints.deviceId = { exact: videoDevices.selectedDeviceId };
+  const audioConstraints = {};
+  if (audioDevices.selectedDeviceId)
+    audioConstraints.deviceId = { exact: audioDevices.selectedDeviceId };
+
+  navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: audioConstraints, })
+    .then(stream => {
+      mediaStream = stream;
+      rtcPeer.setMediaStream(stream);
+      preview.srcObject = stream;
+    });
+});
+
+castScreen.addEventListener('click', e => {
+  e.preventDefault();
+  stop();
+  navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
+    .then(stream => {
+      mediaStream = stream;
+      rtcPeer.setMediaStream(stream);
+      preview.srcObject = stream;
+    });
+});
+
+
+</script>

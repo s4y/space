@@ -16,7 +16,7 @@ const userMedia = {
       return this.mediaPromise = Promise.resolve(new MediaStream([]));
     }
     this.mediaPromise = navigator.mediaDevices.getUserMedia({
-      video: { width: 320, height: 240 },
+      video: { width: { max: 512 } },
       audio: true,
     });
     this.mediaPromise.then(stream => {
