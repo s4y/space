@@ -1,4 +1,5 @@
 /static/deps
 /static-default/deps
+/static-management/deps
 /server.o
 /.deps.stamp
