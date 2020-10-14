@@ -1,0 +1,255 @@
+{
+  "models": [
+    {
+      "name": "beachsand",
+      "geometry": {
+        "uri": "sand.glb",
+        "name": "beachsand"
+      },
+      "glb_path": "https://hamlet-gl-assets.s3.amazonaws.com/beach/models/",
+      "texture_path": "https://hamlet-gl-assets.s3.amazonaws.com/beach/textures",
+      "material": {
+        "map": "tbjibefn_2K_Albedo.jpg",
+        "metalness": 0,
+        "roughness": 1,
+        "normalMap": "tbjibefn_2K_Normal.jpg",
+        "roughnessMap": "tbjibefn_2K_Roughness.jpg",
+        "aoMap": "tbjibefn_2K_AO.jpg",
+        "aoMapIntensity": 1
+      },
+      "transform": {
+        "position": {
+          "x": 0,
+          "y": -0.726342558496488,
+          "z": 0
+        },
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "name": "statue",
+      "geometry": {
+        "uri": "statue.glb",
+        "name": "statue"
+      },
+      "glb_path":"https://hamlet-gl-assets.s3.amazonaws.com/beach/models/",
+      "texture_path": "https://hamlet-gl-assets.s3.amazonaws.com/beach/textures/",
+      "material": {
+        "map": "ubiibiiew_2K_Albedo.jpg",
+        "metalness": 0,
+        "roughness": 0,
+        "normalMap": "ubiibiiew_2K_Normal.jpg",
+        "roughnessMap": "ubiibiiew_2K_Roughness.jpg",
+        "aoMap": "ubiibiiew_2K_AO.jpg",
+        "aoMapIntensity": 1
+      },
+      "transform": {
+        "position": {
+          "x": 15.264408127771095,
+          "y": 6.995871803026819,
+          "z": -18.869860478311868
+        },
+        "scale": [
+          0.14055091034320097,
+          0.1889035035046962,
+          0.21276821971946083
+        ],
+        "rotation": [
+          -0.029270412076922932,
+          -0.8510422442240222,
+          0.11861814549026344,
+          0.5106858888626529
+        ]
+      }
+    }
+  ],
+  "lights": [
+    {
+      "name": "spotlight",
+      "type": "SpotLight",
+      "color": "rgb(255,90,0)",
+      "power": 3.141592653589793,
+      "angle": 1.0471975511965976,
+      "penumbra": 0.5460608586911213,
+      "targetName": "spotlight - target",
+      "transform": {
+        "position": {
+          "x": 2.1397408427018982,
+          "y": 2.0584954532048094,
+          "z": 0
+        },
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "name": "spotlight.002",
+      "type": "SpotLight",
+      "color": "rgb(255,225,0)",
+      "power": 3.141592653589793,
+      "angle": 0.5811458968291248,
+      "penumbra": 0.7505905238293733,
+      "targetName": "spotlight.002 - target",
+      "transform": {
+        "position": {
+          "x": 1.6494614136302603,
+          "y": 1.9904317418081177,
+          "z": 3.76753522782509
+        },
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "name": "pointlight",
+      "type": "PointLight",
+      "color": "rgb(255,0,0)",
+      "power": 14.589412255106295,
+      "transform": {
+        "position": {
+          "x": 3.1071962773195865,
+          "y": 2.7049595451131823,
+          "z": 1.1716748113442952
+        },
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "name": "spotlight.004",
+      "type": "SpotLight",
+      "color": "rgb(255,253,255)",
+      "power": 6.5860775323051275,
+      "angle": 0.5532089884187112,
+      "penumbra": 0.23482006391552035,
+      "targetName": "spotlight.004 - target",
+      "transform": {
+        "position": {
+          "x": 13.215581213075179,
+          "y": 10.29577645674755,
+          "z": -6.3288001972575705
+        },
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      }
+    }
+  ],
+  "duplicates": [],
+  "targets": [
+    {
+      "name": "spotlight - target",
+      "isTarget": true,
+      "targetOf": "spotlight",
+      "transform": {
+        "position": {
+          "x": -1.993436605815629,
+          "y": 1.7239955434052432,
+          "z": 0
+        },
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "name": "spotlight.002 - target",
+      "isTarget": true,
+      "targetOf": "spotlight.002",
+      "transform": {
+        "position": {
+          "x": -1.3435116810818382,
+          "y": 2.0555682412205454,
+          "z": 0
+        },
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "name": "spotlight.004 - target",
+      "isTarget": true,
+      "targetOf": "spotlight.004",
+      "transform": {
+        "position": {
+          "x": 19.469803761188736,
+          "y": 0.5413430636950154,
+          "z": -24.705240795611537
+        },
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      }
+    }
+  ]
+}

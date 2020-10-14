@@ -15,6 +15,7 @@
   </li>
 </template>
 <script type=module>
+   import {init} from '/hmlt/setBuilder.js'
 
 class Knobs {
   constructor(config) {
@@ -150,6 +151,7 @@ window.adminAction = (type, body) => {
 };
 
 connectWs();
+init(conn)
 
 navigator.requestMIDIAccess({
   sysex: false

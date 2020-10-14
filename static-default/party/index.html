@@ -11,6 +11,7 @@ import * as THREE from '/deps/three/build/three.module.js'
 import { GLTFLoader } from '/deps/three/examples/jsm/loaders/GLTFLoader.js'
 import Service from '/space/js/Service.js'
 import RTCPeer from '/space/js/RTCPeer.js'
+import {initBuilder} from '/hmlt/setBuilder.js'
 import RTCLoopback from '/space/js/RTCLoopback.js'
 
 Service.get('docent', docent => {});
@@ -228,6 +229,7 @@ const buildGlRoom = (canvas, config) => {
     });
 
   });
+    initBuilder(scene,camera,renderer)
 
   /*let mixer;
   let loader = new THREE.GLTFLoader();
