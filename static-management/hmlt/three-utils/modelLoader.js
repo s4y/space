@@ -5,7 +5,7 @@ import {DRACOLoader} from '/deps/three/examples/jsm/loaders/DRACOLoader.js';
 
 let defaults = {
     useDraco : false,
-    textureKeys : ['map', 'normalMap', 'aoMap', 'roughnessMap']
+    textureKeys : ['map', 'normalMap', 'aoMap', 'roughnessMap', 'bumpMap']
 }
 
 

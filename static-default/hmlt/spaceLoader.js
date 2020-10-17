@@ -56,7 +56,6 @@ export const loadSet = (object, config, callback) => {
         })
 
         say('TARGETS CREATED. ADDING LIGHTS')
-        console.log(config.lights)
         config.lights.forEach(light_data => {
 
             // we need to set these light properties manually
@@ -94,6 +93,11 @@ export const loadSet = (object, config, callback) => {
 
 
         })
+
+        say('LIGHTS ADDED. SETTING POSITION')
+        let {x,y,z} = config.scene_position;
+        object.position.copy(new THREE.Vector3(x,y,z));
+        
         if (callback)
             callback(object, config)
 

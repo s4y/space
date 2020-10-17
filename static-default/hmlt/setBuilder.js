@@ -45,6 +45,8 @@ export var initBuilder = (scene, k_camera, renderer) => {
                 Service.get('knobs', knobs => {
                     knobs.observe('hmlt_build', msg => {
 
+                        if(msg === undefined) return; 
+
                         console.log(msg)
                         switch(msg.cmd) {
                         case "transform_update" :
@@ -81,7 +83,7 @@ export var initBuilder = (scene, k_camera, renderer) => {
                         {
                             let active_obj = hmlt_root.getObjectByName(msg.obj)
                             active_obj[msg.prop] = msg.data
-                            // we need to do a little more hear in the case of
+                            // we need to do a little more here in the case of
                             // spotlights
                             if(msg.prop === "name" && active_obj.type === "SpotLight") 
                             {

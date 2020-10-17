@@ -168,7 +168,6 @@ export var initBuilder = (scene, k_camera, renderer) => {
    {
 
         var data = new Blob([JSON.stringify(json_obj,null,2)], {type: 'text/plain'});
-        console.log
 
         if (scene_file !== null) {
 
@@ -324,6 +323,7 @@ export var initBuilder = (scene, k_camera, renderer) => {
 
             let o = scene.getObjectByName(model_data.name)
 
+            debugger;
             // bail early if the object has been deleted
             if(o === undefined) return
 
@@ -371,7 +371,7 @@ export var initBuilder = (scene, k_camera, renderer) => {
         export_data.lights = light_data
 
 
-        // finally we need all the duplicates. this helps cut down on loading time
+        // we need all the duplicates. this helps cut down on loading time
         let duplicate_data =hmlt_root.children.filter( child => {return child.userData.isClone})
                                             .map(dup_obj => {
 
@@ -386,6 +386,8 @@ export var initBuilder = (scene, k_camera, renderer) => {
 
         export_data.duplicates = duplicate_data
 
+
+        // target data. 
         let targets_data =hmlt_root.children.filter( child => {return child.userData.isTarget})
                                             .map(target_obj => {
 
@@ -405,6 +407,14 @@ export var initBuilder = (scene, k_camera, renderer) => {
          
 
         export_data.targets = targets_data
+
+
+        
+
+        // export the overall position of the scene
+
+        export_data.scene_position = scene_position
+
 
         return export_data
 
