@@ -4,9 +4,9 @@ import {OrbitControls} from '/deps/three/examples/jsm/controls/OrbitControls.js'
 import {GUI} from '/deps/three/examples/jsm/libs/dat.gui.module.js'
 
 import {loadSet} from '/hmlt/spaceLoader.js'
+import {createActor} from '/hmlt/three-utils/actorPlace.js'
 
-
-var camera, hmlt_root , renderer,clock, controls, transform_controls, panel, lighting_panel
+var camera, hmlt_root , renderer,clock, controls, transform_controls, panel, lighting_panel, actor_panel
 
 var scene_position
 let active_model_name = ""
@@ -22,7 +22,7 @@ export var init = (kconn) => {
     camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.01, 400);
 
 
-    camera.position.set( 0,4, 10 );
+    camera.position.set( 0,40, 100 );
     camera.lookAt(new THREE.Vector3(0, 0, 0));
 
     hmlt_root = new THREE.Scene();
@@ -56,6 +56,7 @@ export var init = (kconn) => {
 export var initBuilder = (scene, k_camera, renderer) => {
     panel = new GUI({width : 310})
     lighting_panel = new GUI({width: 300})
+    actor_panel = new GUI({width: 300})
 
 
     hmlt_root = new THREE.Scene();
@@ -114,6 +115,7 @@ export var initBuilder = (scene, k_camera, renderer) => {
                 config = data 
                 loadSet(hmlt_root, data, (hmlt_root,data) => {
                 buildGui(hmlt_root)
+                buildActorGui(hmlt_root)
                 scene.add(hmlt_root)
                 animate()
 
@@ -323,7 +325,6 @@ export var initBuilder = (scene, k_camera, renderer) => {
 
             let o = scene.getObjectByName(model_data.name)
 
-            debugger;
             // bail early if the object has been deleted
             if(o === undefined) return
 
@@ -431,6 +432,8 @@ export var initBuilder = (scene, k_camera, renderer) => {
           )
 
    }
+
+   
 
    const buildLightGui = (root) => {
 
@@ -553,6 +556,38 @@ export var initBuilder = (scene, k_camera, renderer) => {
         active_light_folder.open()
 
         
+   }
+
+   const buildActorGui = (hmlt_root) => {
+
+        let selected_actor_name = "hmlt"
+        let actor_create_folder = actor_panel.addFolder('Create Actor')
+        let actorController = {
+            name :selected_actor_name ,
+            add : () => {
+
+                console.log(`adding an actor named : ${selected_actor_name}`)
+                createActor(hmlt_root, {name : selected_actor_name})
+                conn && conn.send('setKnob', {name : "hmlt_build", value : {
+                                              cmd : "add-actor",
+                                              data : {name : selected_actor_name}}}
+                )
+                buildGui(hmlt_root)
+            }
+        }
+
+        actor_create_folder.add(actorController, 'name').onChange(
+            (val) => {
+                selected_actor_name = val
+            }
+        )
+
+        actor_create_folder.add(actorController, 'add')
+
+        actor_create_folder.open()
+
+       
+
    }
 
 

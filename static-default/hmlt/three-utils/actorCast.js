@@ -67,6 +67,8 @@ export const createActor = (object, parameters) => {
     const getStream = () => {
         return options.stream
     }
+    mesh.userData.isActor = true
+
 
 
 
