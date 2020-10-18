@@ -8,8 +8,6 @@ let module_name = "SPACE_LOADER"
 
 const say = (text) => {
 
-    
-
     console.log(`${module_name} : ${text}`)
 
 }

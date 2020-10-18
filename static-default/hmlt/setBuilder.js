@@ -3,6 +3,7 @@ import {GUI} from '/deps/three/examples/jsm/libs/dat.gui.module.js'
 import Service from '/space/js/Service.js'
 
 import {loadSet} from '/hmlt/spaceLoader.js'
+import { createActor } from './three-utils/actorCast.js'
 
 
 var camera, hmlt_root , renderer,clock, controls, transform_controls, panel, lighting_panel
@@ -10,13 +11,16 @@ var camera, hmlt_root , renderer,clock, controls, transform_controls, panel, lig
 let active_model_name = ""
 
 
+
 const models = {
     beachsand : {},
     statue : {},
 
 }
+
+
     
-export var initBuilder = (scene, k_camera, renderer) => {
+export var initBuilder = (scene, k_camera, renderer, gesture_wrangler, audio_listener) => {
     panel = new GUI({width : 310})
     lighting_panel = new GUI({width: 300})
 
@@ -28,7 +32,6 @@ export var initBuilder = (scene, k_camera, renderer) => {
     camera = k_camera
 
 
-                
 
     
 
@@ -47,7 +50,6 @@ export var initBuilder = (scene, k_camera, renderer) => {
 
                         if(msg === undefined) return; 
 
-                        console.log(msg)
                         switch(msg.cmd) {
                         case "transform_update" :
                         {
@@ -121,6 +123,13 @@ export var initBuilder = (scene, k_camera, renderer) => {
                             {
                                 addSpotLight(hmlt_root)
                             }
+                        
+                        case "add-actor" :
+                            {
+                                console.log("creating actor") 
+                                createActor(hmlt_root, {listener : audio_listener, gestureWrangler : gesture_wrangler})
+                                console.log(msg)
+                            }
 
 
                         case "delete-obj" :
@@ -165,6 +174,8 @@ export var initBuilder = (scene, k_camera, renderer) => {
         hmlt_root.add(plight)
         buildGui(hmlt_root)
    }
+
+   
 
    const addSpotLight = (hmlt_root) => {
 
