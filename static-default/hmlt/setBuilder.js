@@ -15,6 +15,8 @@ const models = {
     statue : {},
 
 }
+
+
     
 export var initBuilder = (scene, k_camera, renderer) => {
     panel = new GUI({width : 310})
@@ -47,7 +49,6 @@ export var initBuilder = (scene, k_camera, renderer) => {
 
                         if(msg === undefined) return; 
 
-                        console.log(msg)
                         switch(msg.cmd) {
                         case "transform_update" :
                         {
@@ -121,6 +122,12 @@ export var initBuilder = (scene, k_camera, renderer) => {
                             {
                                 addSpotLight(hmlt_root)
                             }
+                        
+                        case "add-actor" :
+                            {
+                                console.log("creating actor") 
+                                console.log(msg)
+                            }
 
 
                         case "delete-obj" :
@@ -165,6 +172,8 @@ export var initBuilder = (scene, k_camera, renderer) => {
         hmlt_root.add(plight)
         buildGui(hmlt_root)
    }
+
+   
 
    const addSpotLight = (hmlt_root) => {
 
