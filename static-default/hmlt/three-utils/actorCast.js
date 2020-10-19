@@ -14,6 +14,54 @@ const say = (text) => {
     console.log(`${module_name} : ${text}`)
 
 }
+const createChromaKeyMaterial = () => {
+  return new THREE.ShaderMaterial({
+    transparent: true,
+    side: THREE.DoubleSide,
+    uniforms: {
+      map: { type: 't' },
+      t: { value: 0 },
+      aspect: { value: 1 },
+      slop: { value: 0.1 },
+      crop: { value: 0 },
+      edgeCorrection: { value: 0.0 },
+    },
+    vertexShader: `
+      varying vec2 p;
+      uniform float aspect;
+      uniform float crop;
+
+      void main() {
+        p = uv*2.-1.;
+        p *= 1. - crop;
+        // norm = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4( position * vec3(aspect, 1., 1.), 1.0 );
+      }
+    `,
+
+    fragmentShader: `
+      #include <common>
+
+      uniform float slop;
+      uniform float edgeCorrection;
+
+      varying vec2 p;
+      uniform sampler2D map;
+
+      void main() {
+        vec2 uv = p;
+        uv = uv/2.+.5;
+        vec4 tex = texture2D(map, uv);
+
+        tex *= pow(1.-clamp(tex.g - max(tex.r, tex.b) - slop, 0., 1.), 50.);
+        tex.g = min(tex.g, max(tex.r, tex.b) + edgeCorrection);
+        gl_FragColor = tex;
+      }
+    `,
+  });
+}
+
+
 export const createActor = (object, parameters) => {
 
 
@@ -38,14 +86,25 @@ export const createActor = (object, parameters) => {
     videoTexture.magFilter = THREE.LinearFilter;
     videoTexture.format = THREE.RGBFormat
 
-    const mesh = new THREE.Mesh(
-        new THREE.PlaneBufferGeometry(options.width, options.height),
-        new THREE.MeshBasicMaterial({
-            color : 0xFFFFFF,
-            side : THREE.DoubleSide,
-            map : videoTexture
-        }))
+    const chromaMat = createChromaKeyMaterial();
 
+
+    // const mesh = new THREE.Mesh(
+    //     new THREE.PlaneBufferGeometry(options.width, options.height),
+    //     new THREE.MeshBasicMaterial({
+    //         color : 0xFFFFFF,
+    //         side : THREE.DoubleSide,
+    //         map : videoTexture
+    //     }))
+
+    const mesh = new THREE.Mesh(
+         new THREE.PlaneBufferGeometry(options.width, options.height),
+         chromaMat
+    )
+
+    mesh.material.uniforms.map.value = videoTexture;
+    mesh.material.uniforms.slop.value = 0.05;
+    mesh.material.uniforms.edgeCorrection.value = 0.2;
 
     const posSound = new THREE.PositionalAudio(options.listener);
     posSound.setRefDistance(10);
