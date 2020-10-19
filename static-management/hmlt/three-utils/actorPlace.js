@@ -37,7 +37,7 @@ export const createActor = (object, parameters) => {
         }))
 
 
-        mesh.useData = 
+        mesh.userData = 
         {
             isActor : true
         }

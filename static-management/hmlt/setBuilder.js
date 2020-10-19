@@ -107,7 +107,7 @@ export var initBuilder = (scene, k_camera, renderer) => {
     
     
 
-    fetch('https://hamlet-gl-assets.s3.amazonaws.com/config/testConfig.js')
+    fetch('https://hamlet-gl-assets.s3.amazonaws.com/config/beachConfig.js')
         .then(
         response => response.json())
         .then(data =>  {
@@ -410,8 +410,18 @@ export var initBuilder = (scene, k_camera, renderer) => {
         export_data.targets = targets_data
 
 
+
+        // actor data
+        let actors_data = hmlt_root.children.filter(child =>  {return child.userData.isActor})
+                                                  .map(actor_obj => {
+                                                      let actor_data = {}
+                                                      actor_data.name = actor_obj.name;
+                                                      actor_data = exportTransform(actor_data, actor_obj)
+                                                      return actor_data
+                                                  })
         
 
+        export_data.actors = actors_data
         // export the overall position of the scene
 
         export_data.scene_position = scene_position

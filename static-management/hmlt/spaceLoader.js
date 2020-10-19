@@ -1,5 +1,7 @@
 import * as THREE from '/deps/three/build/three.module.js'
 import {loadMesh} from '/hmlt/three-utils/modelLoader.js'
+import {createActor} from '/hmlt/three-utils/actorPlace.js'
+
 
 
 
@@ -87,6 +89,7 @@ export const loadSet = (object, config, callback) => {
 
             object.add(new_light)
 
+        
             
 
 
@@ -94,6 +97,23 @@ export const loadSet = (object, config, callback) => {
 
 
         })
+        say('LIGHTS CREATED. PLACING ACTORS')
+        if(config.actors) {
+
+            config.actors.forEach(actor_data => {
+
+                let {x,y,z} = actor_data.transform.position;
+                let [sx,sy,sz] = actor_data.transform.scale;
+                let [qx,qy,qz,qw] = actor_data.transform.rotation
+                createActor(object, 
+                    {
+                        name : actor_data.name,
+                        position : new THREE.Vector3(x,y,z)
+                })
+                
+
+            })
+        }
         if (callback)
             callback(object, config)
 
