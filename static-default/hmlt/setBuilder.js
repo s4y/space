@@ -65,7 +65,6 @@ export var initBuilder = (scene, k_camera, renderer, gesture_wrangler, audio_lis
                                     
                                                     
                         setStreamFunctions.set(actor.name, {setStream : setStream, id: undefined})
-                        debugger;
                         
 
                 })}

@@ -24,12 +24,21 @@ Service.setHost(serviceFrames);
 let mediaStream = new MediaStream();
 let rtcPeer = null;
 
+const hqs = location.hash
+  .substr(1)
+  .split('&')
+  .filter(v => v)
+  .map(c => c.split('=').map(decodeURIComponent))
+  .reduce((params, [k, v]) => (params[k] = v, params), {});
+
+  console.log(hqs.actor)
+
 Service.get('ws', ws => {
   ws.observe('open', () => {
     ws.send({
       type: "join",
       body: {
-        role: 'actor::vince'
+        role: `actor::${hqs.actor}`
       }
     });
 
