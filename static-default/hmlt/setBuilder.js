@@ -61,6 +61,8 @@ export var initBuilder = (scene, k_camera, renderer, gesture_wrangler, audio_lis
                         let [actor, setStream, getStream] = createActor(hmlt_root, {  name : actor_data.name, 
                                                                                       listener : audio_listener, 
                                                                                       position : new THREE.Vector3(x,y,z),
+                                                                                      scale : new THREE.Vector3(sx,sy,sz),
+                                                                                      rotation : new THREE.Quaternion(qx,qy,qz,qw),
                                                                                       gestureWrangler : gesture_wrangler})
                                     
                                                     

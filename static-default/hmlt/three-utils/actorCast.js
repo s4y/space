@@ -5,6 +5,8 @@ let defaults = {
     width : 16,
     height : 9,
     position : new THREE.Vector3(0,0,0),
+    rotation : new THREE.Quaternion(0,0,0,1),
+    scale : new THREE.Vector3(1,1,1),
     stream : null
 }
 let module_name = "aCTOR"
@@ -132,6 +134,9 @@ export const createActor = (object, parameters) => {
 
     mesh.name = options.name
     object.add(mesh)
+    mesh.rotation.setFromQuaternion(options.rotation)
+
+    mesh.scale.copy(options.scale)
 
     mesh.position.copy(options.position)
     return [mesh, setStream, getStream]
