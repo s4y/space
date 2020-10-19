@@ -174,7 +174,7 @@ const buildGlRoom = (canvas, config) => {
   floor.rotation.x = -Math.PI / 2;
   floor.rotation.order = 'YXZ';
   scene.add(floor);
-  initBuilder(scene,camera,renderer,gestureWrangler, listener )
+  let [setActorId]  = initBuilder(scene,camera,renderer,gestureWrangler, listener )
 
   //GLTF LOADER
   let mixer;
@@ -386,7 +386,9 @@ const buildGlRoom = (canvas, config) => {
     if(remoteGuest.state.role.includes('actor'))
     {
       let [_, actor_name] = remoteGuest.state.role.split("::")
-      console.log(actor_name)
+      setActorId(actor_name, id)
+      return;
+      
     }
     if (remoteGuest.state.role == 'cast') {
       projectorId = id;

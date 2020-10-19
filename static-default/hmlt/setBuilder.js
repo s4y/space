@@ -138,7 +138,10 @@ export var initBuilder = (scene, k_camera, renderer, gesture_wrangler, audio_lis
                                 let [actor, setStream, getStream] = createActor(hmlt_root, {name : msg.data.name, 
                                                                                            listener : audio_listener, 
                                                                                             gestureWrangler : gesture_wrangler})
+                                    
+                                setStreamFunctions.set(actor.name, {setStream : setStream, id: undefined})
 
+                                
                                 
                             }
 
@@ -164,6 +167,19 @@ export var initBuilder = (scene, k_camera, renderer, gesture_wrangler, audio_lis
                  }
             )
                 })
+
+
+                const setActorId = (actor_name, id) => {
+                    if(!setStreamFunctions.has(actor_name)) 
+                    {
+                        return
+                    }
+                    setStreamFunctions.set(actor_name, {...setStreamFunctions.get(actor_name) , id : id})
+                }
+
+                return [setActorId]
+
+                
             }
 
 
