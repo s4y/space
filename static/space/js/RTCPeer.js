@@ -42,6 +42,9 @@ export default class RTCPeer {
       this.pc.addTrack(track, this.mediaStream);
   }
 
+
+  
+
   addTrack(track) {
     this.pc.addTrack(track, this.mediaStream);
   }

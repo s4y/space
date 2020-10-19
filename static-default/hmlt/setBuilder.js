@@ -7,7 +7,7 @@ import { createActor } from './three-utils/actorCast.js'
 
 
 var camera, hmlt_root , renderer,clock, controls, transform_controls, panel, lighting_panel
-let setStreamFunctions;
+let setStreamFunctions, id_lookup;
 
 let active_model_name = ""
 
@@ -33,6 +33,7 @@ export var initBuilder = (scene, k_camera, renderer, gesture_wrangler, audio_lis
     camera = k_camera
 
     setStreamFunctions = new Map()
+    id_lookup = {}
 
 
     
@@ -139,7 +140,9 @@ export var initBuilder = (scene, k_camera, renderer, gesture_wrangler, audio_lis
                                                                                            listener : audio_listener, 
                                                                                             gestureWrangler : gesture_wrangler})
                                     
+                                                    
                                 setStreamFunctions.set(actor.name, {setStream : setStream, id: undefined})
+                                break
 
                                 
                                 
@@ -169,15 +172,32 @@ export var initBuilder = (scene, k_camera, renderer, gesture_wrangler, audio_lis
                 })
 
 
+                const hasId = (id) => {
+                    return id_lookup.keys().includes[id]
+                }
                 const setActorId = (actor_name, id) => {
-                    if(!setStreamFunctions.has(actor_name)) 
+                    if(!setStreamFunctions.has(actor_name))
                     {
                         return
                     }
-                    setStreamFunctions.set(actor_name, {...setStreamFunctions.get(actor_name) , id : id})
+                    setStreamFunctions.set(actor_name, {...setStreamFunctions.get(actor_name), id : id })
+                    id_lookup[id] = actor_name
                 }
 
-                return [setActorId]
+                const updateMediaStream = (id,t) => {
+
+                    if(!id_lookup.keys().includes(id)) {
+                        return
+                    }
+                    setStreamFunctions.get(id_lookup[id]).setStream(t)
+                }
+
+                return { 
+                    setActorId : setActorId, 
+                    setStream : updateMediaStream,
+                    hasActorWithId : hasId
+                }
+
 
                 
             }
