@@ -55,6 +55,11 @@ export var initBuilder = (scene, k_camera, renderer, gesture_wrangler, audio_lis
                         {
 
                             let active_obj = hmlt_root.getObjectByName(msg.obj)
+                            if(active_obj === undefined) 
+                            {
+                                return
+                            }
+
                             let dispatch = {
                                 "translate" : () => {
                                                 let {x,y,z} = msg.data

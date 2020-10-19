@@ -174,7 +174,7 @@ const buildGlRoom = (canvas, config) => {
   floor.rotation.x = -Math.PI / 2;
   floor.rotation.order = 'YXZ';
   scene.add(floor);
-  initBuilder(scene,camera,renderer)
+  initBuilder(scene,camera,renderer,gestureWrangler, listener )
 
   //GLTF LOADER
   let mixer;
