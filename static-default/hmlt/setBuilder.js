@@ -41,12 +41,35 @@ export var initBuilder = (scene, k_camera, renderer, gesture_wrangler, audio_lis
     
     
 
-    fetch('https://hamlet-gl-assets.s3.amazonaws.com/config/testConfig.js')
+    fetch('https://hamlet-gl-assets.s3.amazonaws.com/config/beachConfig.js')
         .then(
         response => response.json())
         .then(data =>  {
 
                 loadSet(hmlt_root, data, (hmlt_root,data) => {
+
+                // load the actors and set stream functions
+                if(data.actors) 
+                {
+
+                    console.log("creating actors")
+                    console.log(data.actors)
+                    data.actors.forEach(actor_data => {
+                        let {x,y,z} = actor_data.transform.position;
+                        let [sx,sy,sz] = actor_data.transform.scale;
+                        let [qx,qy,qz,qw] = actor_data.transform.rotation
+                        let [actor, setStream, getStream] = createActor(hmlt_root, {  name : actor_data.name, 
+                                                                                      listener : audio_listener, 
+                                                                                      position : new THREE.Vector3(x,y,z),
+                                                                                      gestureWrangler : gesture_wrangler})
+                                    
+                                                    
+                        setStreamFunctions.set(actor.name, {setStream : setStream, id: undefined})
+                        debugger;
+                        
+
+                })}
+
                 scene.add(hmlt_root)
                 Service.get('knobs', knobs => {
                     knobs.observe('hmlt_build', msg => {
