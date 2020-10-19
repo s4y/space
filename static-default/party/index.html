@@ -116,22 +116,8 @@ const buildGlRoom = (canvas, config) => {
   renderer.setClearColor(new THREE.Color().setHSL(0.5, 0.7, 0.01), 1);
   renderer.physicallyCorrectLights = true;
 
-  const hemiLight = new THREE.HemisphereLight( 0x7FBBFF, 0x34002D, 1 );
-  scene.add(hemiLight);
 
-  for (const props of [
-    { p: [-10, 1, 0], power: 1000 },
-    { p: [10, 1, 0], power: 1000 },
-    { p: [0, 1, 10], power: 1000 },
-    { p: [0, 1, -10], power: 1000 },
-    { p: [0, 7, 0], power: 2000 },
-  ]) {
-    const light = new THREE.PointLight(0xffffff, 100, 50);
-    light.power = props.power;
-    light.decay = 2;
-    light.position.set(...props.p);
-    scene.add(light);
-  }
+  
 
   const guests = {};
   let mediaStream = null;
@@ -139,30 +125,7 @@ const buildGlRoom = (canvas, config) => {
   scene.add(createSky());
 
   const updateBalloons = [];
-  const balloonGeometry = new THREE.IcosahedronBufferGeometry(5, 0);
-  for (let i = 0; i < 10; i++) {
-    const rowLight = new THREE.PointLight(0xffffff, 100, 50);
-    rowLight.power = 2000;
-    rowLight.decay = 2;
-    rowLight.position.y = -10;
-    for (let j = 0; j < 10; j++) {
-      const balloon = new THREE.Mesh(
-        balloonGeometry,
-        new THREE.MeshPhongMaterial({
-          color: 0xffffff,
-          shininess: 20,
-        }));
-      if (j == i)
-        balloon.add(rowLight);
-      updateBalloons.push((now, byteFreqData) => {
-        balloon.position.y = 40 + motion * (Math.sin(now / 10000 + i / 2. + j * 3.) * 10.);
-        balloon.material.emissive.setHSL((i + j) / 40 + now / 16000, 0.5, + (byteFreqData[i*10+j]*musicReactivity) / 255 * 0.8);
-      });
-      balloon.position.z = j * 15 - 150;
-      balloon.position.x = i * 15 - 150;
-      scene.add(balloon);
-    }
-  }
+  
 
   const floor = new THREE.Mesh(
     new THREE.CircleBufferGeometry(100000),
@@ -172,8 +135,6 @@ const buildGlRoom = (canvas, config) => {
       shininess: 20,
     } ));
   floor.rotation.x = -Math.PI / 2;
-  floor.rotation.order = 'YXZ';
-  scene.add(floor);
   let hmlt_scene  = initBuilder(scene,camera,renderer,gestureWrangler, listener )
 
   //GLTF LOADER
@@ -440,21 +401,7 @@ const buildGlRoom = (canvas, config) => {
   };
 
   const cubez = [];
-  for (let i = 0; i < 10; i++) {
-    const size = 20 - (i * 0.1);
-    const cube = new THREE.Mesh(
-      new THREE.BoxBufferGeometry(size, 1, size),
-      new THREE.MeshPhongMaterial( {
-        color: 0xaaaaaa,
-        emissive: 0x000000,
-        shininess: 20,
-      } )
-    );
-    cube.position.y = 20;
-    cube.rotation.order = 'YXZ';
-    scene.add(cube);
-    cubez.push(cube);
-  }
+  
 
   const byteFreqData = new Uint8Array(1024);
 
@@ -524,20 +471,9 @@ const buildGlRoom = (canvas, config) => {
     camera.rotation.y = -look[0];
     camera.rotation.x = -look[1];
 
-    if (musicAnalyser)
-      musicAnalyser.getByteFrequencyData(byteFreqData);
 
-    for (let i = 0; i < cubez.length; i++) {
-      const cube = cubez[i];
-      const seq = (now / 100000) % 16;
-      const florp = seq - (seq % 1) * (1 - Math.pow(seq % 1, 100));
-      const flap = (florp/16) * Math.PI * 2;
-      cube.rotation.z = Math.PI / 4;
-      cube.rotation.x = Math.atan(1/Math.SQRT2) + flap;
-      cube.rotation.y = now / 10000 * (i+1);
-    }
+    
 
-    updateBalloons.forEach(f => f(now, byteFreqData));
 
     renderer.render(scene, camera);
   };
