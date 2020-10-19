@@ -14,7 +14,7 @@ let conn;
 let config ;
 
 
-export var init = (kconn) => {
+export var init = ( kconn, config_uri) => {
 
     conn = kconn
 
@@ -36,7 +36,7 @@ export var init = (kconn) => {
 
     renderer.shadowMap.enabled = true;
     document.body.appendChild(renderer.domElement);
-    initBuilder(hmlt_root, camera, renderer)
+    initBuilder(hmlt_root,config_uri, camera, renderer)
    window.addEventListener('resize', (evt) => {
 
 
@@ -53,7 +53,7 @@ export var init = (kconn) => {
    })
 }
     
-export var initBuilder = (scene, k_camera, renderer) => {
+export var initBuilder = (scene,config_uri, k_camera, renderer) => {
     panel = new GUI({width : 310})
     lighting_panel = new GUI({width: 300})
     actor_panel = new GUI({width: 300})
@@ -107,7 +107,7 @@ export var initBuilder = (scene, k_camera, renderer) => {
     
     
 
-    fetch('https://hamlet-gl-assets.s3.amazonaws.com/config/beachConfig.js')
+    fetch(`https://hamlet-gl-assets.s3.amazonaws.com/config/${config_uri}`)
         .then(
         response => response.json())
         .then(data =>  {

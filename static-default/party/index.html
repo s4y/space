@@ -24,6 +24,9 @@ const hqs = location.hash
   .map(c => c.split('=').map(decodeURIComponent))
   .reduce((params, [k, v]) => (params[k] = v, params), {});
 
+  console.log(hqs)
+
+
 const createStatsTracker = () => {
   let ws;
   Service.get('ws', x => ws = x);
@@ -135,7 +138,26 @@ const buildGlRoom = (canvas, config) => {
       shininess: 20,
     } ));
   floor.rotation.x = -Math.PI / 2;
-  let hmlt_scene  = initBuilder(scene,camera,renderer,gestureWrangler, listener )
+
+  
+  let set_config = "beachConfig.js"
+  const urlParams = new URLSearchParams(window.top.location.search);
+  const setting_param = urlParams.get('setting')
+
+  if(setting_param) {
+    switch(setting_param) {
+      case "interior" :
+       set_config = "interiorConfig.js"
+        break;
+      case "beach" : 
+       set_config = "beachConfig.js"
+        break;
+
+
+    }
+  }
+  
+  let hmlt_scene  = initBuilder(scene,set_config,camera,renderer,gestureWrangler, listener )
 
   //GLTF LOADER
   let mixer;

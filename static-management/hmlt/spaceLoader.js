@@ -36,6 +36,7 @@ export const loadSet = (object, config, callback) => {
     const promises = config.models.map(model => {
 
         return loadMesh(model).then(mesh => {
+            console.log(mesh)
             object.add(mesh)
         })
     })

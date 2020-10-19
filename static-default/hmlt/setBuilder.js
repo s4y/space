@@ -21,7 +21,7 @@ const models = {
 
 
     
-export var initBuilder = (scene, k_camera, renderer, gesture_wrangler, audio_listener) => {
+export var initBuilder = (scene,config_name, k_camera, renderer, gesture_wrangler, audio_listener) => {
     panel = new GUI({width : 310})
     lighting_panel = new GUI({width: 300})
 
@@ -41,7 +41,7 @@ export var initBuilder = (scene, k_camera, renderer, gesture_wrangler, audio_lis
     
     
 
-    fetch('https://hamlet-gl-assets.s3.amazonaws.com/config/beachConfig.js')
+    fetch(`https://hamlet-gl-assets.s3.amazonaws.com/config/${config_name}`)
         .then(
         response => response.json())
         .then(data =>  {
@@ -70,6 +70,7 @@ export var initBuilder = (scene, k_camera, renderer, gesture_wrangler, audio_lis
                         
 
                 })}
+
 
                 scene.add(hmlt_root)
                 Service.get('knobs', knobs => {
