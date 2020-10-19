@@ -7,6 +7,7 @@ import { createActor } from './three-utils/actorCast.js'
 
 
 var camera, hmlt_root , renderer,clock, controls, transform_controls, panel, lighting_panel
+let setStreamFunctions;
 
 let active_model_name = ""
 
@@ -31,6 +32,7 @@ export var initBuilder = (scene, k_camera, renderer, gesture_wrangler, audio_lis
 
     camera = k_camera
 
+    setStreamFunctions = new Map()
 
 
     
@@ -132,8 +134,12 @@ export var initBuilder = (scene, k_camera, renderer, gesture_wrangler, audio_lis
                         case "add-actor" :
                             {
                                 console.log("creating actor") 
-                                createActor(hmlt_root, {listener : audio_listener, gestureWrangler : gesture_wrangler})
-                                console.log(msg)
+                                
+                                let [actor, setStream, getStream] = createActor(hmlt_root, {name : msg.data.name, 
+                                                                                           listener : audio_listener, 
+                                                                                            gestureWrangler : gesture_wrangler})
+
+                                
                             }
 
 

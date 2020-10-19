@@ -39,7 +39,7 @@ export const createActor = (object, parameters) => {
     videoTexture.format = THREE.RGBFormat
 
     const mesh = new THREE.Mesh(
-        new THREE.PlaneBufferGeometry(width, height),
+        new THREE.PlaneBufferGeometry(options.width, options.height),
         new THREE.MeshBasicMaterial({
             color : 0xFFFFFF,
             side : THREE.DoubleSide,

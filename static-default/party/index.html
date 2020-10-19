@@ -380,6 +380,14 @@ const buildGlRoom = (canvas, config) => {
   let projectorId = null;
 
   const updateGuest = (id, remoteGuest) => {
+    
+    // it's hacks all the way down ;-) 
+
+    if(remoteGuest.state.role.includes('actor'))
+    {
+      let [_, actor_name] = remoteGuest.state.role.split("::")
+      console.log(actor_name)
+    }
     if (remoteGuest.state.role == 'cast') {
       projectorId = id;
       return;
