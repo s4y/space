@@ -405,7 +405,8 @@ const buildGlRoom = (canvas, config) => {
   }
 
   const updateMedia = (id, { videoTrack, audioTrack }) => {
-    if(hmlt.scene.hasId(id)) 
+    console.log(hmlt_scene.hasActorWithId(id))
+    if(hmlt_scene.hasActorWithId(id)) 
     {
       hmlt_scene.setStream(id, new MediaStream([videoTrack, audioTrack].filter(t => t)));
 

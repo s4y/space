@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<link rel=stylesheet href=style.css>
+<body>
+<button type=button onclick="adminAction('reload', '/party/')">Reload renderer</button>
+<button type=button onclick="adminAction('reload', '/space/services/room.html')">Reload room</button>
+<button type=button onclick="adminAction('reload', '/party/overlay.html')">Reload overlay</button>
+<button type=button onclick="adminAction('reload', '/')">Reload everything</button>
+<!--<button type=button onclick="adminAction('reconnect', 'webrtc')">Reconnect WebRTC</button>-->
+<button type=button onclick="adminAction('reconnect', 'websocket')">Reconnect WebSocket</button>
+<ul id=knobsEl></ul>
+<template id=knobTemplate>
+  <li>
+    <button data-key=map type=button>Map</button>
+    <input data-key=input type=range min=0 max=1 step="0.001"></input>
+    <span data-key=value></span>
+    <span data-key=label></span>
+  </li>
+</template>
+<ul id=guests></ul>
+<script type=module>
+   import {init} from '/hmlt/setBuilder.js'
+
+   let conn;
+const connectWs = () => {
+  const ws = new WebSocket(`${location.protocol == 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+
+  ws.onclose = e => {
+    setTimeout(connectWs, 1000);
+  };
+  ws.onmessage = e => {
+    const message = JSON.parse(e.data);
+    const {type, body} = message;
+    switch (type) {
+      case "guestDebug": {
+        }
+        break;
+      default:
+        console.log('message', type, body);
+    }
+  };
+  ws.onopen = e => {
+  };
+
+  conn = {
+    send(type, body) {
+      ws.send(JSON.stringify({ type, body }));
+    }
+  };
+};
+
+window.adminAction = (type, body) => {
+  conn && conn.send('broadcast', { type, body });
+};
+
+connectWs();
+init(conn)
+
+
+</script>

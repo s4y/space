@@ -56,10 +56,9 @@ export const createActor = (object, parameters) => {
     mesh.add(posSound);
 
     const setStream = (stream) => {
-        videoEl.srcObject = stream;
-        options.gestureWrangler.playVideo(videoEl);
+        actor_element.srcObject = stream;
+        options.gestureWrangler.playVideo(actor_element);
         posSound.setMediaStreamSource(stream);
-        posSound.source.connect(musicAnalyser);
 
 
     }

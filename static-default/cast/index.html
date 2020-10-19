@@ -129,9 +129,11 @@ castCamera.addEventListener('click', e => {
 
   navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: audioConstraints, })
     .then(stream => {
-      mediaStream = stream;
-      rtcPeer.setMediaStream(stream);
       preview.srcObject = stream;
+      for (const track of stream.getTracks()) {
+        mediaStream.addTrack(track)
+        rtcPeer.addTrack(track)
+      }
     });
 });
 

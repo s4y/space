@@ -33,7 +33,7 @@ export var initBuilder = (scene, k_camera, renderer, gesture_wrangler, audio_lis
     camera = k_camera
 
     setStreamFunctions = new Map()
-    id_lookup = {}
+    id_lookup = new Map()
 
 
     
@@ -173,7 +173,9 @@ export var initBuilder = (scene, k_camera, renderer, gesture_wrangler, audio_lis
 
 
                 const hasId = (id) => {
-                    return id_lookup.keys().includes[id]
+                    console.log(id)
+                    console.log(id_lookup.has(id))
+                    return id_lookup.has(id)
                 }
                 const setActorId = (actor_name, id) => {
                     if(!setStreamFunctions.has(actor_name))
@@ -181,15 +183,15 @@ export var initBuilder = (scene, k_camera, renderer, gesture_wrangler, audio_lis
                         return
                     }
                     setStreamFunctions.set(actor_name, {...setStreamFunctions.get(actor_name), id : id })
-                    id_lookup[id] = actor_name
+                    id_lookup.set(id, actor_name)
                 }
 
                 const updateMediaStream = (id,t) => {
 
-                    if(!id_lookup.keys().includes(id)) {
+                    if(!id_lookup.has(id)) {
                         return
                     }
-                    setStreamFunctions.get(id_lookup[id]).setStream(t)
+                    setStreamFunctions.get(id_lookup.get(id)).setStream(t)
                 }
 
                 return { 

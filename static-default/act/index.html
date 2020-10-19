@@ -29,7 +29,7 @@ Service.get('ws', ws => {
     ws.send({
       type: "join",
       body: {
-        role: 'acior::vince'
+        role: 'actor::vince'
       }
     });
 
@@ -129,9 +129,11 @@ castCamera.addEventListener('click', e => {
 
   navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: audioConstraints, })
     .then(stream => {
-      mediaStream = stream;
-      rtcPeer.setMediaStream(stream);
       preview.srcObject = stream;
+      for (const track of stream.getTracks()) {
+        mediaStream.addTrack(track)
+        rtcPeer.addTrack(track)
+      }
     });
 });
 
@@ -140,8 +142,10 @@ castScreen.addEventListener('click', e => {
   stop();
   navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
     .then(stream => {
-      mediaStream = stream;
-      rtcPeer.setMediaStream(stream);
+      for (const track of stream.getTracks()) {
+        mediaStream.addTrack(track)
+        rtcPeer.addTrack(track)
+      }
       preview.srcObject = stream;
     });
 });
