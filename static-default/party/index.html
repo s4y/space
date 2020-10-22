@@ -12,7 +12,7 @@ import { GLTFLoader } from '/deps/three/examples/jsm/loaders/GLTFLoader.js'
 import { BufferGeometryUtils } from '/deps/three/examples/jsm/utils/BufferGeometryUtils.js'
 import Service from '/space/js/Service.js'
 import RTCPeer from '/space/js/RTCPeer.js'
-import {initBuilder} from '/hmlt/setBuilder.js'
+import {initBuilder, useActors} from '/hmlt/setBuilder.js'
 import RTCLoopback from '/space/js/RTCLoopback.js'
 
 Service.get('docent', docent => {});
@@ -140,58 +140,14 @@ const buildGlRoom = (canvas, config) => {
   floor.rotation.x = -Math.PI / 2;
 
   
-  let set_config = "beachConfig.js"
-  const urlParams = new URLSearchParams(window.top.location.search);
-  const setting_param = urlParams.get('setting')
+  let set_config = "hmltConfig.js"
 
-  if(setting_param) {
-    switch(setting_param) {
-      case "interior" :
-       set_config = "interiorConfig.js"
-        break;
-      case "beach" : 
-       set_config = "beachConfig.js"
-        break;
-
-
-    }
-  }
+  
   
   let hmlt_scene  = initBuilder(scene,set_config,camera,renderer,gestureWrangler, listener )
+  let [hasActorWithId, setActorId, updateMediaStream] = useActors()
 
-  //GLTF LOADER
-  let mixer;
-  let loader = new GLTFLoader();
-  loader.load('/models/Duck/Duck.gltf', function(gltf){
-    const duck = gltf.scene.children[0];
-    duck.scale.set(0.2,0.2,0.2);
-    duck.position.y = 1.5;
-
-    duck.rotation.y = -Math.PI;
-    scene.add(gltf.scene);
-    // animate();
-
-    mixer = new THREE.AnimationMixer( duck );
-    gltf.animations.forEach(( clip ) => {
-      mixer.clipAction(clip).play();
-    });
-
-  });
-
-  /*let mixer;
-  let loader = new THREE.GLTFLoader();
-  loader.load( '/models/Duck/Duck.gltf', ( gltf ) => {
-    const model = gltf.scene;
-    model.scale.set(5.0,5.0,5.0);
-    scene.add(model);
-    /*
-    mixer = new THREE.AnimationMixer( model );
-    gltf.animations.forEach(( clip ) => {
-      mixer.clipAction(clip).play();
-    });
-
-  });
-  */
+  
 
   const resize = () => {
     renderer.setSize(
@@ -369,7 +325,7 @@ const buildGlRoom = (canvas, config) => {
     if(remoteGuest.state.role.includes('actor'))
     {
       let [_, actor_name] = remoteGuest.state.role.split("::")
-      hmlt_scene.setActorId(actor_name, id)
+      setActorId(actor_name, id)
       return;
       
     }
@@ -388,10 +344,9 @@ const buildGlRoom = (canvas, config) => {
   }
 
   const updateMedia = (id, { videoTrack, audioTrack }) => {
-    console.log(hmlt_scene.hasActorWithId(id))
-    if(hmlt_scene.hasActorWithId(id)) 
+    if(hasActorWithId(id)) 
     {
-      hmlt_scene.setStream(id, new MediaStream([videoTrack, audioTrack].filter(t => t)));
+      updateMediaStream(id, new MediaStream([videoTrack, audioTrack].filter(t => t)));
 
     }
     if (id == projectorId) {
