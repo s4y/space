@@ -14,11 +14,9 @@ let active_model_name = ""
 let config = ""
 
 
-const models = {
-    beachsand : {},
-    statue : {},
 
-}
+let active_scene = ""; 
+
 const createActors = (object, actors) => {
             actors.forEach(actor_data => {
                         let {x,y,z} = actor_data.transform.position;
@@ -43,19 +41,21 @@ const createActors = (object, actors) => {
 export var reload = (scene)  => {
     if(config === "")
         return
+
+    let [getScene, setScene] = useActiveScene()
     
     fetch(`https://hamlet-gl-assets.s3.amazonaws.com/config/${config}`)
         .then(
         response => response.json())
         .then(data =>  {
                  let promises = data.map(set => {
-                                       loadSet(hmlt_root, set, createActors)
+                                       return loadSet(hmlt_root, set, createActors)
                         })
-
-                Promise.all(promises).then(() => {
-                        scene.add(hmlt_root)
+                    Promise.all(promises).then(() => {
+                            setScene("interior")
+                            scene.add(hmlt_root)
                 })
-                })
+            })
 
                 // loadSet(hmlt_root, data, (hmlt_root,data) => {
 
@@ -210,15 +210,31 @@ export var initBuilder = (scene,config_uri, k_camera, renderer, gw,al) => {
 
     reload(scene)
 
-
-    
-
-    
-    
-    
-
     }
         
+    export const useActiveScene = () => {
+        let update_scenes = (active_scene_name) => {
+            console.log("update scene")
+            hmlt_root.children.map(child => {
+                if(child.name === active_scene_name) {
+                    child.visible = true
+                }else {
+                    child.visible = false
+                }
+            })
+        }
+
+        const setActiveScene = (new_scene_name) => {
+            update_scenes(new_scene_name)
+            active_scene = new_scene_name
+        }
+        const getActiveSceneName  = () => {
+            return active_scene
+        }
+        
+
+        return [getActiveSceneName , setActiveScene]
+    }
 
 
    export const useActors = () => {

@@ -99,8 +99,10 @@ export const loadSet = (object, config, actor_factory) => {
 
         say('ACTORS CREATED. SETTING POSITION')
         let {x,y,z} = config.scene_position;
-        object.position.copy(new THREE.Vector3(x,y,z));
-        
+        scene.position.copy(new THREE.Vector3(x,y,z));
+
+        scene.name = config.sceneName
+
         object.add(scene)
         resolve(scene, config)
     })
