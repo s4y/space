@@ -109,9 +109,9 @@ export const createActor = (object, parameters) => {
     mesh.material.uniforms.edgeCorrection.value = 0.2;
 
 
-    let sound =  new THREE.Audio(listener)
+    let sound =  new THREE.Audio(options.listener)
 
-    mesh.add(posSound);
+    mesh.add(sound);
 
 
     const setStream = (stream) => {
