@@ -266,7 +266,8 @@ const buildGlRoom = (canvas, config) => {
 
     const videoEl = document.createElement('video');
     videoEl.playsInline = true;
-    videoEl.muted = true;
+    if (!sessionStorage.noPositionalSound)
+      videoEl.muted = true;
 
     const posSound = new THREE.PositionalAudio(listener);
     posSound.setRefDistance(posAudioParams.refDistance);
@@ -300,7 +301,8 @@ const buildGlRoom = (canvas, config) => {
         gestureWrangler.playVideo(videoEl);
         if (audioTrack) {
           try {
-            posSound.setMediaStreamSource(stream);
+            if (!sessionStorage.noPositionalSound)
+              posSound.setMediaStreamSource(stream);
           } catch (e) {
             console.log(e);
             videoEl.muted = false;
