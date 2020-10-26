@@ -40,13 +40,15 @@ body > iframe {
   justify-content: center;
   align-items: center;
   background: rgba(0, 0, 0, 0.5);
+  font: 2em system-ui, "Helvetica Neue", Helvetica, sans-serif;
+  color: white;
   z-index: 1;
 }
 
 </style>
 <body>
 <div id=serviceFrames></div>
-<div id=needGesture style="display: none"><button type=button>Click to unmute</button></div>
+<div id=needGesture style="display: none">Click/touch anywhere.</div>
 <script type=module>
 
 import Service from '/space/js/Service.js';
@@ -56,7 +58,7 @@ Service.setHost(serviceFrames);
 let gestureWrangler;
 Service.get('gestureWrangler', w => {
   gestureWrangler = w;
-  w.setPromptEl(needGesture, needGesture.querySelector('button'));
+  w.setPromptEl(needGesture, needGesture);
 });
 
 Service.get('docent', docent => {});
