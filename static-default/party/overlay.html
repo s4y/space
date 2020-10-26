@@ -193,25 +193,6 @@ Service.get('room', room => {
   player = controls.player = room.player;
 });
 
-startActing.addEventListener('click', e => {
-  const actorName = prompt('Enter your actor name');
-  if (!actorName)
-    return;
-  player.setMeta({
-    role: `actor::${actorName.toLowerCase()}`,
-  });
-  startActing.style.display = 'none';
-  stopActing.style.display = '';
-});
-
-stopActing.addEventListener('click', e => {
-  player.setMeta({
-    role: '',
-  });
-  startActing.style.display = '';
-  stopActing.style.display = 'none';
-});
-
 Service.get('userMedia', userMedia => {
   userMedia.observe('videoMuted', videoMuted => {
     videoMutedEl.style.display = videoMuted ? '' : 'none';
@@ -221,11 +202,50 @@ Service.get('userMedia', userMedia => {
     audioMutedEl.style.display = audioMuted ? '' : 'none';
   });
 
+  let defaultVideoDevice;
   userMedia.observe('stream', stream => {
+    const videoTrack = stream.getVideoTracks()[0];
+    if (videoTrack) {
+      console.log('new video track', videoTrack.getSettings());
+      defaultVideoDevice = videoTrack.getSettings().deviceId;
+    }
+
     if (preview.srcObject == stream)
       return;
     preview.srcObject = stream;
     preview.play();
+  });
+
+
+  startActing.addEventListener('click', e => {
+    const actorName = prompt('Enter your actor name');
+    if (!actorName)
+      return;
+    player.setMeta({
+      role: `actor::${actorName.toLowerCase()}`,
+    });
+    userMedia.applyConstraints({
+      video: {
+        width: 1280,
+        height: 720,
+        aspectRatio: 1920/1080,
+        deviceId: { exact: defaultVideoDevice },
+      }
+    });
+    console.log('defaultVideoDevice', defaultVideoDevice);
+    startActing.style.display = 'none';
+    stopActing.style.display = '';
+  });
+
+  stopActing.addEventListener('click', e => {
+    player.setMeta({
+      role: '',
+    });
+    userMedia.applyConstraints({
+      video: userMedia.defaultConstraints.video,
+    });
+    startActing.style.display = '';
+    stopActing.style.display = 'none';
   });
 });
 
