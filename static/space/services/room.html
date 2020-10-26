@@ -9,6 +9,7 @@ class Player {
   constructor(onchange, state = { position: [], look: [], }) {
     this.onchange = onchange;
     this.position = [Math.random() * 20 - 10, -90 + Math.random() * 10 - 5, 0];
+    this.meta = { role: '', };
 
     // Gingerly unpack the saved position from sessionStorage. If anything
     // isn't a reasonable value, use the default.
@@ -23,6 +24,7 @@ class Player {
     return {
       position: this.position,
       look: this.look,
+      ...this.meta,
     };
   }
   get look() {
@@ -37,6 +39,10 @@ class Player {
   }
   set position(position) {
     this._position = position;
+    this.onchange();
+  }
+  setMeta(meta) {
+    Object.assign(this.meta, meta);  
     this.onchange();
   }
   applyAcceleration(acceleration) {
@@ -91,11 +97,15 @@ class Room {
     }
     if (!this.player)
       this.player = new Player(onchange);
+    this.updateGuest('self', this.player.toJSON());
   }
-  join() {
+  join(meta) {
     if (this.isJoined)
       return;
     this.isJoined = true;
+    if (meta)
+      this.player.meta = meta;
+    this.updateGuest('self', this.player.toJSON());
     Service.get('ws', ws => this.setWs(ws));
     Service.get('gestureWrangler', gestureWrangler => {
       gestureWrangler.playAudioContext(this.ac);
@@ -140,12 +150,15 @@ class Room {
       this.mapTrack(body);
     });
   }
-  updateGuest(id, state) {
-    const guest = this.guests[id] || (this.guests[id] = {
+  getOrCreateGuest(id) {
+    return this.guests[id] || (this.guests[id] = {
       videoTrack: null,
       audioTrack: null,
       mids: [],
     });
+  }
+  updateGuest(id, state) {
+    const guest = this.getOrCreateGuest(id);
     guest.state = state;
     this.observers.fire('update', id, guest);
   }
@@ -179,6 +192,7 @@ class Room {
     const newStateJSON = JSON.stringify(this.player);
     if (oldStateJSON == newStateJSON)
       return;
+    this.updateGuest('self', this.player.toJSON());
     sessionStorage.playerState = newStateJSON;
     if (this.ws && this.ws.open) {
       this.ws.send({

@@ -145,7 +145,7 @@ const buildGlRoom = (canvas, config) => {
   
   
   let hmlt_scene  = initBuilder(scene,set_config,camera,renderer,gestureWrangler, listener )
-  let [hasActorWithId, setActorId, updateMediaStream] = useActors()
+  let [hasActorWithId, setActorId, clearActorRole, updateMediaStream] = useActors()
 
   
 
@@ -287,12 +287,19 @@ const buildGlRoom = (canvas, config) => {
 
     const ret = (guests[id] = {
       group, head, body, posSound,
+      destroy() {
+        videoEl.srcObject = null;
+        if (posSound.source)
+          posSound.disconnect();
+      },
+      get videoTrack() { return videoTrack; },
       set videoTrack(newVideoTrack) {
         if (newVideoTrack == videoTrack)
           return;
         videoTrack = newVideoTrack;
         updateTracks();
       },
+      get audioTrack() { return audioTrack; },
       set audioTrack(newAudioTrack) {
         if (newAudioTrack == audioTrack)
           return;
@@ -317,6 +324,7 @@ const buildGlRoom = (canvas, config) => {
   };
 
   let projectorId = null;
+  let ownActorName = null;
 
   const updateGuest = (id, remoteGuest) => {
     
@@ -326,8 +334,19 @@ const buildGlRoom = (canvas, config) => {
     {
       let [_, actor_name] = remoteGuest.state.role.split("::")
       setActorId(actor_name, id)
+      if (id == 'self')
+        ownActorName = actor_name;
+      const guest = guests[id];
+      if (guest) {
+        removeGuest(id, true);
+        updateMedia(id, guest);
+      }
       return;
-      
+    }
+    clearActorRole(id);
+    if (id == 'self') {
+      ownActorName = '';
+      return;
     }
     if (remoteGuest.state.role == 'cast') {
       projectorId = id;
@@ -374,6 +393,7 @@ const buildGlRoom = (canvas, config) => {
     }
 
     scene.remove(guest.group);
+    guest.destroy();
     delete guests[id];
   };
 
@@ -442,14 +462,18 @@ const buildGlRoom = (canvas, config) => {
   projector.group.rotation.y = Math.PI / 2;
 
   const draw = ({ now, look, position }) => {
-    camera.position.x = position[0];
-    camera.position.z = -position[1];
-    camera.position.y = 6 + position[2];
-    camera.rotation.y = -look[0];
-    camera.rotation.x = -look[1];
-
-
-    
+    if (ownActorName) {
+      const obj = scene.getObjectByName(ownActorName);
+      if (obj) {
+        obj.add(camera);
+        camera.position.set(0, 0, 0);
+        camera.rotation.set(0, Math.PI, 0);
+      }
+    } else {
+      scene.add(camera);
+      camera.position.set(position[0], 6 + position[2], -position[1]);
+      camera.rotation.set(-look[1], -look[0], 0);
+    }
 
 
     renderer.render(scene, camera);

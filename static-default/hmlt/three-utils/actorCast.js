@@ -115,9 +115,17 @@ export const createActor = (object, parameters) => {
 
 
     const setStream = (stream) => {
+        if (actor_element.srcObject == stream)
+          return
         actor_element.srcObject = stream;
-        options.gestureWrangler.playVideo(actor_element);
-        sound.setMediaStreamSource(stream);
+        if (stream) {
+          mesh.visible = true;
+          options.gestureWrangler.playVideo(actor_element);
+          sound.setMediaStreamSource(stream);
+        } else {
+          mesh.visible = false;
+          sound.disconnect();
+        }
 
 
     }

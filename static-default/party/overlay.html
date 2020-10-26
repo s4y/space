@@ -17,14 +17,39 @@ body {
   color: red;
 }
 
-#preview {
+#topright {
   position: absolute;
   top: 0;
   right: 0;
+  display: flex;
+  align-items: flex-start;
+}
+
+#topright > button {
+  margin: 0.75em 0.5em;
+}
+
+select, input, button {
+  font: inherit;
+  color: #ccc;
+  background: #222;
+  border: 1px solid #aaa;;
+  border-radius: 3px;
+  padding: 0.5em 0.5em;;
+}
+
+#stopActing {
+  background: #c00;
+  color: white;
+}
+
+#preview {
   width: 15vw;
+  display: block;
   object-fit: cover;
   border-bottom-right-radius: 1em;
   transform: scale(-1, 1);
+  margin-left: 1em;
 }
 
 #chat {
@@ -37,6 +62,7 @@ body {
   color: white;
   display: flex;
   flex-direction: column;
+  pointer-events: none;
 }
 
 #chat > ul {
@@ -44,7 +70,6 @@ body {
   padding: 0;
   margin: 0;
   overflow: auto;
-  pointer-events: none;
   flex: 1;
   display: flex;
   flex-direction: column-reverse;
@@ -56,6 +81,7 @@ body {
   border-radius: 1em;
   margin: 0.25em;
   background: rgba(100, 100, 100, 0.6);
+  pointer-events: auto;
 }
 
 #chat > ul > li.self {
@@ -67,6 +93,7 @@ body {
 }
 
 #chatForm > input {
+  pointer-events: auto;
   background: none;
   font: inherit;
   color: inherit;
@@ -99,7 +126,11 @@ body {
 
 <div id=videoMutedEl style="display: none">Camera off</div>
 <div id=audioMutedEl style="display: none">Microphone off</div>
+<div id=topright>
+<button id=startActing>Start acting…</button>
+<button id=stopActing style="display: none">Stop acting</button>
 <video muted id=preview playsinline></video>
+</div>
 <div id=chat>
   <ul data-click-through></ul>
   <form id=chatForm><input name=message autocomplete=off></form>
@@ -162,6 +193,25 @@ Service.get('room', room => {
   player = controls.player = room.player;
 });
 
+startActing.addEventListener('click', e => {
+  const actorName = prompt('Enter your actor name');
+  if (!actorName)
+    return;
+  player.setMeta({
+    role: `actor::${actorName.toLowerCase()}`,
+  });
+  startActing.style.display = 'none';
+  stopActing.style.display = '';
+});
+
+stopActing.addEventListener('click', e => {
+  player.setMeta({
+    role: '',
+  });
+  startActing.style.display = '';
+  stopActing.style.display = 'none';
+});
+
 Service.get('userMedia', userMedia => {
   userMedia.observe('videoMuted', videoMuted => {
     videoMutedEl.style.display = videoMuted ? '' : 'none';
@@ -172,6 +222,8 @@ Service.get('userMedia', userMedia => {
   });
 
   userMedia.observe('stream', stream => {
+    if (preview.srcObject == stream)
+      return;
     preview.srcObject = stream;
     preview.play();
   });
