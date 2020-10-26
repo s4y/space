@@ -4,42 +4,73 @@
 import Service from '../js/Service.js';
 import Observers from '../js/Observers.js';
 
+const defaultConstraints = {
+  video: { width: { max: 512 } },
+  audio: {},
+};
+
 const userMedia = {
-  stream: null,
+  activeConstraints: null,
+  pendingConstraints: { ...defaultConstraints },
   videoMuted: false,
   audioMuted: false,
+  stream: new MediaStream(),
+  devices: null,
   observers: new Observers(),
-  start() {
-    if (this.mediaPromise)
-      return;
-    if (!navigator.mediaDevices) {
-      return this.mediaPromise = Promise.resolve(new MediaStream([]));
+  async restart() {
+    const newConstraints = {};
+    if (this.audioMuted) {
+      this.setTrack(null, 'audio');
+      delete this.activeConstraints.audio;
+    } else if (this.pendingConstraints.audio != (this.activeConstraints && this.activeConstraints.audio)) {
+      newConstraints.audio = this.pendingConstraints.audio;
     }
-    this.mediaPromise = navigator.mediaDevices.getUserMedia({
-      video: { width: { max: 512 } },
-      audio: true,
-    });
-    this.mediaPromise.then(stream => {
-      this.stream = stream;
-      this.updateTracksEnabled();
-      this.observers.fire('stream', stream);
-    });
+    if (this.videoMuted) {
+      this.setTrack(null, 'video');
+      delete this.activeConstraints.video;
+    } else if (this.pendingConstraints.video != (this.activeConstraints && this.activeConstraints.video)) {
+      newConstraints.video = this.pendingConstraints.video;
+    }
+    if (newConstraints.audio || newConstraints.video) {
+      this.activeConstraints = newConstraints;
+      const stream = await navigator.mediaDevices.getUserMedia(newConstraints);
+      for (const track of stream.getTracks())
+        this.setTrack(track, track.kind);
+      if (!this.devices)
+        this.refreshDevices();
+    }
   },
-  updateTracksEnabled() {
-    this.stream.getAudioTracks().forEach(track => track.enabled = !this.audioMuted);
-    this.stream.getVideoTracks().forEach(track => track.enabled = !this.videoMuted);
+  start() {
+    if (this.activeConstraints)
+      return;
+    if (!navigator.mediaDevices)
+      return;
+    this.restart();
+    navigator.mediaDevices.addEventListener('devicechange', () => this.refreshDevices());
   },
-  toggleVideoMuted() {
-    this.videoMuted = !this.videoMuted;
-    this.updateTracksEnabled();
+  setTrack(newTrack, kind) {
+    for (const track of this.stream.getTracks()) {
+      if (track == newTrack)
+        return;
+      else if (track.kind == kind) {
+        track.stop();
+        this.stream.removeTrack(track);
+      }
+    }
+    if (newTrack)
+      this.stream.addTrack(newTrack);
+    this.observers.fire('stream', this.stream);
   },
-  toggleAudioMuted() {
-    this.audioMuted = !this.audioMuted;
-    this.updateTracksEnabled();
-  }
+  async refreshDevices() {
+    this.devices = await navigator.mediaDevices.enumerateDevices();
+    this.observers.fire('devices', this.devices);
+  },
 }
 
 class UserMediaClient {
+  get defaultConstraints() {
+    return defaultConstraints;
+  }
   constructor(context) {
     this.context = context;
   }
@@ -54,18 +85,26 @@ class UserMediaClient {
     } else if (key == 'stream') {
       if (userMedia.stream)
         cb(userMedia.stream);
+    } else if (key == 'devices') {
+      if (userMedia.devices)
+        cb(userMedia.devices);
     }
     return userMedia.observers.add(key, this.context, cb);
   }
   toggleVideoMuted() {
     userMedia.videoMuted = !userMedia.videoMuted;
-    userMedia.updateTracksEnabled();
+    userMedia.restart();
     userMedia.observers.fire('videoMuted', userMedia.videoMuted);
   }
   toggleAudioMuted() {
     userMedia.audioMuted = !userMedia.audioMuted;
-    userMedia.updateTracksEnabled();
+    userMedia.restart();
     userMedia.observers.fire('audioMuted', userMedia.audioMuted);
+  }
+  applyConstraints(newConstraints) {
+    Object.assign(userMedia.pendingConstraints, newConstraints);
+    if (userMedia.activeConstraints)
+      userMedia.restart();
   }
 }
 

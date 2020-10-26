@@ -32,25 +32,28 @@ export default class RTCPeer {
 
     if (!this.mediaStream)
       this.mediaStream = new MediaStream();
-    this.mediaStream.addEventListener("addtrack", e => {
-      this.pc.addTrack(e.track, this.mediaStream);
-    });
-    this.mediaStream.addEventListener("removetrack", e => {
-      this.pc.removeTrack(e.track, this.mediaStream);
-    });
-    for (const track of this.mediaStream.getTracks())
-      this.pc.addTrack(track, this.mediaStream);
+    this.updateTracks();
   }
 
-
-  
-
-  addTrack(track) {
-    this.pc.addTrack(track, this.mediaStream);
-  }
-
-  removeTrack(track) {
-    this.pc.removeTrack(track, this.mediaStream);
+  updateTracks() {
+    const newTracks = new Set(this.mediaStream.getTracks());
+    for (const track of newTracks) {
+      let existingSender;
+      for (const sender of this.pc.getSenders()) {
+        if (!sender.track)
+          continue;
+        if (sender.track != track && newTracks.has(sender.track))
+          continue;
+        if (sender.track.kind != track.kind)
+          continue
+        existingSender = sender;
+        break;
+      }
+      if (existingSender)
+        existingSender.replaceTrack(track);
+      else
+        this.pc.addTrack(track, this.mediaStream);
+    }
   }
 
   setMidObserver(mid, observer) {
