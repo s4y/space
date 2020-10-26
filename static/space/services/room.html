@@ -231,14 +231,12 @@ onVisibilityChange();
 
 Service.get('userMedia', userMedia => {
   userMedia.observe('stream', stream => {
-    for (const track of room.mediaStream.getTracks()) {
+    for (const track of room.mediaStream.getTracks())
       room.mediaStream.removeTrack(track);
-      room.rtcPeer.removeTrack(track);
-    }
-    for (const track of stream.getTracks()) {
+    for (const track of stream.getTracks())
       room.mediaStream.addTrack(track);
-      room.rtcPeer.addTrack(track);
-    }
+    if (room.rtcPeer)
+      room.rtcPeer.updateTracks();
   });
 });
 
