@@ -84,17 +84,19 @@ const createSky = () => {
 const makeSoundscape = (listener) => {
   const group = new THREE.Group();
   const updates = [];
-  const balloonGeometry = new THREE.IcosahedronBufferGeometry(5, 0);
 
   const root = 200
   const notes = [root, root*5/4, (root*5*6/4/5)]
 
-  const pos = {x: 20, y: 0, z: 10}
+  const pos = {x: 10, y: 25, z: 20}
 
-  for (let q = 0; q < 3; q++) {
+  const motionX = 10
+  const motionZ = 50
+  const rate = 10
 
     for (let i = 0; i < 6; i++) {
       const rowLight = new THREE.PointLight(0xffffff, 100, 50);
+      const balloonGeometry = new THREE.IcosahedronBufferGeometry(i+2, i);
       rowLight.power = 2000;
       rowLight.decay = 2;
       rowLight.position.y = -10;
@@ -107,17 +109,22 @@ const makeSoundscape = (listener) => {
             color: 0xffffff,
           }));
         
-        balloon.position.y = i * 25;
-        balloon.position.z = (q * 150) + (i+10) + j * 5;
-        balloon.position.x = (q * 150) + (i+10) + j * 10;
+        const dx = (t) => x + 20 * Math.sin(t / 3000) + (i*50 * Math.sin(t/2000))
+        const dz = (t) => z + 50 * Math.sin(t / 2000) + (i*10)+Math.cos(t/(j+1))
+        const dy = (t) => y + 20 * Math.sin(t / 1000)
+
+        balloon.position.x = dx(0)
+        balloon.position.z = dz(0)
+        balloon.position.y = dy(0)
+
 
         // const lfo = balloon.lfo = listener.context.createOscillator()
         const osc = balloon.osc = listener.context.createOscillator()
         const gain = listener.context.createGain();
 
-        gain.gain.value = 0.3;
+        gain.gain.value = 0.1;
         osc.connect(gain);
-        osc.frequency.value = notes[j] * (q +1) * 1.5 * i
+        osc.frequency.value = notes[j] *  1.5 * i
         osc.start();
         group.add(balloon);
 
@@ -129,28 +136,26 @@ const makeSoundscape = (listener) => {
 
         const posSound = new THREE.PositionalAudio(listener);
         posSound.setNodeSource(gain);
-        posSound.setRefDistance(150);
-        posSound.setRolloffFactor(50);
+        posSound.setRefDistance(100);
+        posSound.setRolloffFactor(10);
         posSound.setDistanceModel('exponential');
         posSound.rotation.x = Math.PI;
         balloon.add(posSound);
 
+
+          balloon.material.color.setHSL(Math.random(), Math.random(), Math.random());
         updates.push((now, byteFreqData) => {
-          console.log('bufname', buf.name)
-          console.log('now', now)
+          balloon.position.x = dx(now)
+          balloon.position.z = dz(now) 
+          balloon.position.y = dy(now)
           // update the oscillator frequency based on now
-          balloon.material.color.setHSL((i + j) / 40 + now / 16000, 0.5, + (buf[i*10+j]) / 255 * 0.8);
         });
       }
     }
 
-  }
   return {
     group,
-    update(...args) {
-      for (const f of updates)
-        f(...args);
-    },
+    updates
   };
 }
 
@@ -566,7 +571,7 @@ const buildGlRoom = (canvas, config) => {
       cube.rotation.y = now / 10000 * (i+1);
     }
 
-    updateBalloons.forEach(f => f(now, byteFreqData));
+    ([...updateBalloons, ...soundfield.updates]).forEach(f => f(now, byteFreqData));
 
     renderer.render(scene, camera);
   };
