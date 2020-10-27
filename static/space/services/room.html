@@ -91,6 +91,7 @@ class Room {
     }
     if (!this.player)
       this.player = new Player(onchange);
+    this.updateGuest('self', this.player);
   }
   join() {
     if (this.isJoined)
@@ -140,12 +141,15 @@ class Room {
       this.mapTrack(body);
     });
   }
-  updateGuest(id, state) {
-    const guest = this.guests[id] || (this.guests[id] = {
+  getOrCreateGuest(id) {
+    return this.guests[id] || (this.guests[id] = {
       videoTrack: null,
       audioTrack: null,
       mids: [],
     });
+  }
+  updateGuest(id, state) {
+    const guest = this.getOrCreateGuest(id);
     guest.state = state;
     this.observers.fire('update', id, guest);
   }
@@ -180,6 +184,7 @@ class Room {
     if (oldStateJSON == newStateJSON)
       return;
     sessionStorage.playerState = newStateJSON;
+    this.updateGuest('self', this.player);
     if (this.ws && this.ws.open) {
       this.ws.send({
         type: "state",
@@ -237,6 +242,9 @@ Service.get('userMedia', userMedia => {
       room.mediaStream.addTrack(track);
     if (room.rtcPeer)
       room.rtcPeer.updateTracks();
+    const self = room.getOrCreateGuest('self');
+    self.videoTrack = stream.getVideoTracks()[0];
+    room.observers.fire('updateMedia', 'self', self);
   });
 });
 

@@ -52,6 +52,17 @@ html, body, #room {
   height: 100%;
 }
 
+#glPlayerView {
+  display: block;
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 20%;
+  height: 20%;
+  border-bottom-right-radius: 1em;
+  transform: scale(-1, 1);
+}
+
 #overlay {
   position: absolute;
   top: 0;

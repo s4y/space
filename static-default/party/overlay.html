@@ -17,16 +17,6 @@ body {
   color: red;
 }
 
-#preview {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 15vw;
-  object-fit: cover;
-  border-bottom-right-radius: 1em;
-  transform: scale(-1, 1);
-}
-
 #chat {
   position: absolute;
   bottom: 2em;
@@ -99,7 +89,6 @@ body {
 
 <div id=videoMutedEl style="display: none">Camera off</div>
 <div id=audioMutedEl style="display: none">Microphone off</div>
-<video muted id=preview playsinline></video>
 <div id=chat>
   <ul data-click-through></ul>
   <form id=chatForm><input name=message autocomplete=off></form>
@@ -169,11 +158,6 @@ Service.get('userMedia', userMedia => {
 
   userMedia.observe('audioMuted', audioMuted => {
     audioMutedEl.style.display = audioMuted ? '' : 'none';
-  });
-
-  userMedia.observe('stream', stream => {
-    preview.srcObject = stream;
-    preview.play();
   });
 });
 
