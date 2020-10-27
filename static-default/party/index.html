@@ -351,6 +351,11 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
 
     const ret = (guests[id] = {
       group, head, body, posSound,
+      destroy() {
+        videoEl.srcObject = null;
+        if (posSound.source)
+          posSound.disconnect();
+      },
       set videoTrack(newVideoTrack) {
         if (newVideoTrack == videoTrack)
           return;
@@ -424,6 +429,7 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
     }
 
     guest.group.parent.remove(guest.group);
+    guest.destroy();
     delete guests[id];
   };
 
