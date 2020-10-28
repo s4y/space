@@ -13,6 +13,7 @@ import { BufferGeometryUtils } from '/deps/three/examples/jsm/utils/BufferGeomet
 import Service from '/space/js/Service.js'
 import RTCPeer from '/space/js/RTCPeer.js'
 import RTCLoopback from '/space/js/RTCLoopback.js'
+import { play, metronome, qn } from '/space/js/Score.js'
 
 Service.get('docent', docent => {});
 
@@ -81,7 +82,170 @@ const createSky = () => {
   return sky;
 };
 
-const makeSoundscape = (listener) => {
+
+const sounder = (listener, params = {}) => {
+  const osc = balloon.osc = listener.context.createOscillator()
+  const gain = listener.context.createGain();
+
+  gain.gain.value = 0.1
+  osc.connect(gain)
+  osc.frequency.value = params.freq
+
+  const speaker = new THREE.PositionalAudio(listener);
+  speaker.setNodeSource(gain)
+  speaker.setRefDistance(params.length || 15);
+  speaker.setRolloffFactor(params.rolloff || 15);
+  speaker.setDistanceModel(params.model(120, 230, 0.2), 'exponential');
+  speaker.setDirectionalCone.apply(speaker, params.cone || [120, 230, 0.2]);
+  speaker.rotation.y = Math.PI;
+    return (mesh) => {
+      mesh.add(speaker)
+      osc.start();
+      return speaker
+  }
+}
+
+
+const copypasta = (color, texture) => {
+  const geometry = new THREE.Geometry();
+  geometry.vertices.push(
+    new THREE.Vector3(-1, -1,  1),  // 0
+    new THREE.Vector3( 1, -1,  1),  // 1
+    new THREE.Vector3(-1,  1,  1),  // 2
+    new THREE.Vector3( 1,  1,  1),  // 3
+    new THREE.Vector3(-1, -1, -1),  // 4
+    new THREE.Vector3( 1, -1, -1),  // 5
+    new THREE.Vector3(-1,  1, -1),  // 6
+    new THREE.Vector3( 1,  1, -1),  // 7
+  );
+
+  /*
+       6----7
+      /|   /|
+     2----3 |
+     | |  | |
+     | 4--|-5
+     |/   |/
+     0----1
+  */
+
+  geometry.faces.push(
+    // front
+    new THREE.Face3(0, 3, 2),
+    new THREE.Face3(0, 1, 3),
+    // right
+    new THREE.Face3(1, 7, 3),
+    new THREE.Face3(1, 5, 7),
+    // back
+    new THREE.Face3(5, 6, 7),
+    new THREE.Face3(5, 4, 6),
+    // left
+    new THREE.Face3(4, 2, 6),
+    new THREE.Face3(4, 0, 2),
+    // top
+    new THREE.Face3(2, 7, 6),
+    new THREE.Face3(2, 3, 7),
+    // bottom
+    new THREE.Face3(4, 1, 0),
+    new THREE.Face3(4, 5, 1),
+  );
+
+
+  geometry.faceVertexUvs[0].push(
+      // front
+      [ new THREE.Vector2(0, 0), new THREE.Vector2(1, 1), new THREE.Vector2(0, 1) ],
+      [ new THREE.Vector2(0, 0), new THREE.Vector2(1, 0), new THREE.Vector2(1, 1) ],
+      // right
+      [ new THREE.Vector2(0, 0), new THREE.Vector2(1, 1), new THREE.Vector2(0, 1) ],
+      [ new THREE.Vector2(0, 0), new THREE.Vector2(1, 0), new THREE.Vector2(1, 1) ],
+      // back
+      [ new THREE.Vector2(0, 0), new THREE.Vector2(1, 1), new THREE.Vector2(0, 1) ],
+      [ new THREE.Vector2(0, 0), new THREE.Vector2(1, 0), new THREE.Vector2(1, 1) ],
+      // left
+      [ new THREE.Vector2(0, 0), new THREE.Vector2(1, 1), new THREE.Vector2(0, 1) ],
+      [ new THREE.Vector2(0, 0), new THREE.Vector2(1, 0), new THREE.Vector2(1, 1) ],
+      // top
+      [ new THREE.Vector2(0, 0), new THREE.Vector2(1, 1), new THREE.Vector2(0, 1) ],
+      [ new THREE.Vector2(0, 0), new THREE.Vector2(1, 0), new THREE.Vector2(1, 1) ],
+      // bottom
+      [ new THREE.Vector2(0, 0), new THREE.Vector2(1, 1), new THREE.Vector2(0, 1) ],
+      [ new THREE.Vector2(0, 0), new THREE.Vector2(1, 0), new THREE.Vector2(1, 1) ],
+  );
+
+  geometry.computeFaceNormals();
+  const material = new THREE.MeshPhongMaterial({color, map: texture});
+
+  const cube = new THREE.Mesh(geometry, material);
+  return cube;
+}
+
+
+const makeSoundscape2 = (listener) => {
+  const loader = new THREE.TextureLoader();
+  const texture = loader.load('https://threejsfundamentals.org/threejs/resources/images/star.png');
+
+  const cubes = [
+    copypasta(0x88FF88, texture),
+    copypasta(0x8888FF, texture),
+    copypasta(0xFF8888, texture),
+  ];
+  const [group] = trio()
+  cubes.forEach(c=>group.add(c))
+metronome()
+  return {group: singing(listener,group)}
+}
+
+const orb = (t, [x,y,z], [dx, dy, dz])  => {
+  const o = copypasta()
+
+  dx = dx || ((t) => x * Math.sin(t / 3000) + (i*50 * Math.sin(t/2000)))
+  dz = dz || ((t) => y * Math.sin(t / 2000) + (i*10)+Math.cos(t/(j+1)))
+  dy = dy || ((t) => z * Math.sin(t / 1000))
+
+  o.position.x = dx(0)
+  o.position.y = dy(0)
+  o.position.z = dz(0)
+  o.updates = [dx,dy,dz]
+  return o
+}
+
+
+const trio = (t) => {
+  const change = (offset) => () =>     
+    Math.sin(t) * offset * 0.00001
+
+  const a = orb(t, ([1,0,0]), ([1,2,3]).map(change))
+  const b = orb(t, ([0,1,0]), ([3,2,1]).map(change))
+  const c = orb(t, ([0,0,1]), ([2,1,3]).map(change))
+
+  const update = (now, data) => {
+    ([`x`,`y`,`z`]).forEach((p,i) =>
+    {
+     a.position[p] = a.updates[i](t) 
+     b.position[p] = b.updates[i](t) 
+     c.position[p] = c.updates[i](t) 
+    })
+      
+  }
+
+  return [(((new THREE.Group).add(a)).add(b)).add(c), update]
+}
+
+
+const singing = (listener, trio) => {
+  const ns = [1,2,3,4,5,6,7,8,9]
+
+  for(let i=0;i< trio.children.length; i++) {
+    const notes = ns.map((x,j) => [32+x*11*(i)*j, qn])
+    const osc = listener.context.createOscillator()
+    play(osc, notes, true)
+  }
+
+  return trio
+}
+
+
+const makeSoundscape1 = (listener) => {
   const group = new THREE.Group();
   const updates = [];
 
@@ -109,16 +273,14 @@ const makeSoundscape = (listener) => {
             color: 0xffffff,
           }));
         
-        const dx = (t) => x + 20 * Math.sin(t / 3000) + (i*50 * Math.sin(t/2000))
-        const dz = (t) => z + 50 * Math.sin(t / 2000) + (i*10)+Math.cos(t/(j+1))
-        const dy = (t) => y + 20 * Math.sin(t / 1000)
+        const dx = (t) => 10 * Math.sin(t / 3000) + (i*50 * Math.sin(t/2000))
+        const dz = (t) => 20 * Math.sin(t / 2000) + (i*10)+Math.cos(t/(j+1))
+        const dy = (t) => 10 * Math.sin(t / 1000)
 
         balloon.position.x = dx(0)
         balloon.position.z = dz(0)
         balloon.position.y = dy(0)
 
-
-        // const lfo = balloon.lfo = listener.context.createOscillator()
         const osc = balloon.osc = listener.context.createOscillator()
         const gain = listener.context.createGain();
 
@@ -127,7 +289,6 @@ const makeSoundscape = (listener) => {
         osc.frequency.value = notes[j] *  1.5 * i
         osc.start();
         group.add(balloon);
-
 
         const analyser = listener.context.createAnalyser();
         const buf = new Uint8Array(1024);
@@ -142,16 +303,15 @@ const makeSoundscape = (listener) => {
         posSound.rotation.x = Math.PI;
         balloon.add(posSound);
 
-
-          balloon.material.color.setHSL(Math.random(), Math.random(), Math.random());
+        balloon.material.color.setHSL(Math.random(), Math.random(), Math.random());
         updates.push((now, byteFreqData) => {
-          balloon.position.x = dx(now)
-          balloon.position.z = dz(now) 
-          balloon.position.y = dy(now)
-          // update the oscillator frequency based on now
-        });
-      }
+        balloon.position.x = dx(now)
+        balloon.position.z = dz(now) 
+        balloon.position.y = dy(now)
+        // update the oscillator frequency based on now
+      });
     }
+  }
 
   return {
     group,
@@ -242,10 +402,15 @@ const buildGlRoom = (canvas, config) => {
     }
   }
 
-  const soundfield = makeSoundscape(listener);
-  soundfield.group.position.x = 250;
-  soundfield.group.position.z = -150;
-  scene.add(soundfield.group);
+  // const soundfield = makeSoundscape1(listener);
+  // soundfield.group.position.x = 250;
+  // soundfield.group.position.z = -150;
+  // scene.add(soundfield.group);
+
+
+  const dancers = makeSoundscape2(listener)
+  console.log("dancers",dancers)
+  scene.add(dancers.group)
 
   const floor = new THREE.Mesh(
     new THREE.CircleBufferGeometry(100000),
@@ -571,7 +736,8 @@ const buildGlRoom = (canvas, config) => {
       cube.rotation.y = now / 10000 * (i+1);
     }
 
-    ([...updateBalloons, ...soundfield.updates]).forEach(f => f(now, byteFreqData));
+    // ([...updateBalloons, ...soundfield.updates]).forEach(f => f(now, byteFreqData));
+    updateBalloons.forEach(f => f(now, byteFreqData));
 
     renderer.render(scene, camera);
   };
