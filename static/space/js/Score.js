@@ -1,25 +1,22 @@
 const bpm = 128
-
+export const qn = 30/bpm
 
 //# Rhythms
 
 
-const id = x => x
-
-
-const double = (f = id) =>
+const double = (f=x=>x) =>
   ([1, 1]).map(f)
 
 
-const onbeat = (f = id) =>
+const onbeat = (f=x=>x) =>
   ([1, 0]).map(f)
 
 
-const offbeat = (f = id) =>
+const offbeat = (f=x=>x) =>
   ([0, 1]).map(f)
 
 
-const silent = (f = id) => 
+const silent = (f=x=>x) => 
   ([0, 0]).map(f)
 
 
@@ -34,11 +31,7 @@ const decayControl = (length) => (freqs) =>
 
 
 const short = decayControl(0.5)
-
-
 const tenuto = decayControl(0.8)
-
-
 const legato = decayControl(1)
 
 
@@ -69,13 +62,6 @@ const groove = (length = 16, pattern = []) => {
 
 
 //# Instruments 
-
-
-const schedule = (osc, freq, when, length = 1) => {
-  osc.frequency.setValueAtTime(freq, when)
-  osc.frequency.setValueAtTime(freq, when + (length * 0.98))
-  osc.frequency.linearRampToValueAtTime(0, when + (length * 0.98))
-}
 
 
 let kick = (ctx, freq = () => 84, gen = onbeat) => {
@@ -113,33 +99,27 @@ const hat = (ctx) => {
 }
 
 
-const play = (make, notes, loop = true) => {
-	console.log('play')
-	const osc = make()
-	console.log('args',osc, notes, loop)
+export const play = (osc, notes, loop = true) => {
   const now = osc.context.currentTime
-	const duration = 60/bpm
+	notes.forEach(([freq, len], i) => 
+  osc.frequency.setValueAtTime(freq, now + qn * i))
 
-	notes.forEach(([freq, len], i, list) => 
-    schedule(osc, freq, now + (duration * i), len))
-
-	osc.start(0)
+  if ( ! osc.started) {
+    osc.start(0); 
+    osc.started = true
+  }
 	osc.connect(osc.context.destination)
-	osc.stop(now + (duration * notes.length))
-	osc.onended = loop ? () => play(make, notes, loop) : _=> osc.dicsonnect(osc.context.destination)
+  loop && (setTimeout(() => play(osc, notes, loop), 1000 * qn * notes.length))
 }
 
 
 export const metronome = () => {
 	const ctx = new AudioContext()
-	console.log(tenuto(onbeat((on) => on * 82)))
-	play(_ => kick(ctx), tenuto(onbeat((on) => on * 82)), true)
-  play(_ => hat(ctx), short(offbeat((on) => on * (82 * 128))), true)
+
+	play(kick(ctx), tenuto(onbeat((on) => on * 82)), true)
+  play(hat(ctx), short(offbeat((on) => on * (82 * 128))), true)
 
 	return function stop() {
 		ctx.close()
 	}
 }
-
-
-metronome()
