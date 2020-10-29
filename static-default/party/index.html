@@ -120,19 +120,17 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
   const hemiLight = new THREE.HemisphereLight( 0x7FBBFF, 0x34002D, 1 );
   scene.add(hemiLight);
   const playerCamera = new THREE.PerspectiveCamera(30);
-  const playerClippingPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1));
-  playerCamera.far = 10000;
   playerCamera.rotation.order = 'YXZ';
   playerCamera.rotation.y = Math.PI;
-  playerCamera.position.z -= 12;
+  playerCamera.position.z -= 14;
   playerCamera.position.y -= -6;
   const playerRenderer = new THREE.WebGLRenderer({
     canvas: playerCanvas,
     alpha: true,
     antialias: false,
+    powerPreference: 'high-performance',
   });
   playerRenderer.setClearColor(renderer.clearColor);
-  playerRenderer.autoClear = false;
 
   for (const props of [
     { p: [-10, 1, 0], power: 1000 },
@@ -536,11 +534,6 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
     renderer.render(scene, camera);
 
     if (guests.self) {
-      playerRenderer.clear();
-      playerClippingPlane.setComponents(0, 0, -1, -12).applyMatrix4(playerCamera.matrixWorld);
-      playerRenderer.clippingPlanes.push(playerClippingPlane);
-      playerRenderer.render(scene, playerCamera);
-      playerRenderer.clippingPlanes.pop();
       playerRenderer.render(playerScene, playerCamera);
     }
   };
