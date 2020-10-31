@@ -12,8 +12,8 @@ const defaultConstraints = {
 const userMedia = {
   activeConstraints: null,
   pendingConstraints: { ...defaultConstraints },
-  videoMuted: false,
-  audioMuted: false,
+  videoMuted: sessionStorage.videoMuted == 'true',
+  audioMuted: sessionStorage.audioMuted == 'true',
   stream: new MediaStream(),
   devices: null,
   observers: new Observers(),
@@ -92,12 +92,12 @@ class UserMediaClient {
     return userMedia.observers.add(key, this.context, cb);
   }
   toggleVideoMuted() {
-    userMedia.videoMuted = !userMedia.videoMuted;
+    sessionStorage.videoMuted = userMedia.videoMuted = !userMedia.videoMuted;
     userMedia.restart();
     userMedia.observers.fire('videoMuted', userMedia.videoMuted);
   }
   toggleAudioMuted() {
-    userMedia.audioMuted = !userMedia.audioMuted;
+    sessionStorage.audioMuted = userMedia.audioMuted = !userMedia.audioMuted;
     userMedia.restart();
     userMedia.observers.fire('audioMuted', userMedia.audioMuted);
   }
