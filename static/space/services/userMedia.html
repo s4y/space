@@ -21,18 +21,21 @@ const userMedia = {
     const newConstraints = {};
     if (this.audioMuted) {
       this.setTrack(null, 'audio');
-      delete this.activeConstraints.audio;
+      if (this.activeConstraints)
+        delete this.activeConstraints.audio;
     } else if (this.pendingConstraints.audio != (this.activeConstraints && this.activeConstraints.audio)) {
       newConstraints.audio = this.pendingConstraints.audio;
     }
     if (this.videoMuted) {
       this.setTrack(null, 'video');
-      delete this.activeConstraints.video;
+      if (this.activeConstraints)
+        delete this.activeConstraints.video;
     } else if (this.pendingConstraints.video != (this.activeConstraints && this.activeConstraints.video)) {
       newConstraints.video = this.pendingConstraints.video;
     }
     if (newConstraints.audio || newConstraints.video) {
-      this.activeConstraints = newConstraints;
+      this.activeConstraints ||= {};
+      Object.assign(this.activeConstraints, newConstraints);
       const stream = await navigator.mediaDevices.getUserMedia(newConstraints);
       for (const track of stream.getTracks())
         this.setTrack(track, track.kind);
