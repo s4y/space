@@ -28,6 +28,7 @@ const createStatsTracker = () => {
   let ws;
   Service.get('ws', x => ws = x);
   return {
+    fpsHistory: [],
     frames: null,
     startTime: null,
     begin() {
@@ -37,6 +38,7 @@ const createStatsTracker = () => {
         setTimeout(() => {
           const delta = +new Date() - this.startTime;
           const fps = this.frames / (delta / 1000)
+          this.recordFps(fps);
           try {
           ws.send({ type: "debug.fps", body: fps });
           } catch(e) {}
@@ -46,7 +48,21 @@ const createStatsTracker = () => {
       this.frames++;
     },
     end() {
-    }
+    },
+    recordFps(fps) {
+      this.fpsHistory.push(fps);
+      if (this.fpsHistory.length > 9)
+        this.fpsHistory.shift();
+      if (this.fpsHistory.length < 5)
+        return;
+      const sortedFps = this.fpsHistory.slice().sort();
+      const middle = (sortedFps.length + 1) / 2;
+      const median = sortedFps[Math.floor(middle)];
+      if (median < 29) {
+        this.onPerformanceNeeded();
+        this.fpsHistory.length = 0;
+      }
+    },
   };
 };
 const stats = createStatsTracker();
@@ -188,10 +204,11 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
   floor.rotation.order = 'YXZ';
   scene.add(floor);
 
+  let downscale = 1;
   const resize = () => {
     renderer.setSize(
-      canvas.clientWidth * devicePixelRatio,
-      canvas.clientHeight * devicePixelRatio, false);
+      canvas.clientWidth * devicePixelRatio / downscale,
+      canvas.clientHeight * devicePixelRatio / downscale, false);
     camera.aspect = canvas.width / canvas.height;
     camera.updateProjectionMatrix();
 
@@ -202,6 +219,13 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
     playerCamera.updateProjectionMatrix();
   };
   window.addEventListener('resize', resize);
+
+  stats.onPerformanceNeeded = () => {
+    if (downscale < 4) {
+      downscale++;
+      resize();
+    }
+  }
 
   const headMaterial = new THREE.ShaderMaterial( {
     transparent: true,
