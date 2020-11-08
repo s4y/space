@@ -144,6 +144,16 @@ func (w *World) Observe(ctx context.Context, e WorldEventType, cb interface{}) {
 	w.observers.Add(ctx, e, cb)
 }
 
+func (w *World) GetGuests() map[uint32]*Guest {
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
+	ret := map[uint32]*Guest{}
+	for k, v := range w.Guests {
+		ret[k] = v
+	}
+	return ret
+}
+
 func (w *World) AddGuest(ctx context.Context, g *Guest) uint32 {
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
