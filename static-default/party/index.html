@@ -13,6 +13,7 @@ import { BufferGeometryUtils } from '/deps/three/examples/jsm/utils/BufferGeomet
 import Service from '/space/js/Service.js'
 import RTCPeer from '/space/js/RTCPeer.js'
 import RTCLoopback from '/space/js/RTCLoopback.js'
+import { play, metronome, qn } from '/space/js/Score.js'
 
 Service.get('docent', docent => {});
 
@@ -82,60 +83,171 @@ const createSky = () => {
 };
 
 
-const makeCortlandSoundscape = (listener) => {
+const sounder = (listener, params = {}) => {
+  const osc = listener.context.createOscillator()
+  const gain = listener.context.createGain();
+
+  gain.gain.value = 0.1
+  osc.connect(gain)
+
+  if (params.freq) {
+    osc.frequency.value = params.freq
+    osc.start()
+  } else if (params.notes) {
+    play(osc, params.notes, true)
+  }
+
+  const speaker = new THREE.PositionalAudio(listener);
+
+  speaker.setNodeSource(gain)
+  speaker.setRefDistance(params.size || 50);
+  speaker.setRolloffFactor(params.rolloff || 10);
+  speaker.setDistanceModel(params.model || 'exponential');
+  // speaker.setDirectionalCone.apply(speaker, params.cone || [120, 230, 0.2]);
+  // speaker.rotation.y = Math.PI;
+  // if (!osc.started) {
+  //   osc.start();
+  //   osc.started = true
+  // }
+  return {osc, speaker}
+}
+
+
+const orb = ([x,y,z])  => {
+  const o = new THREE.Mesh(new THREE.IcosahedronBufferGeometry(12))
+
+  const dx = ((t) => o.position.x = x * Math.sin(t / 3000) + (50 * Math.sin(t/2000)))
+  const dz = ((t) => o.position.y = y * Math.sin(t / 2000) + (10)+Math.cos(t))
+  const dy = ((t) => o.position.z = z * Math.sin(t / 1000))
+
+  dx(0)
+  dy(0)
+  dz(0)
+
+  o.update = (t, data) => {
+    dx(t, data)
+    dy(t, data)
+    dz(t, data)
+  }
+  return o
+}
+
+
+const trio = () => {
+  const change = (offset, i) => (t) =>     
+    Math.sin(t) * offset * 0.00001
+
+  const a = orb([1,0,0])
+  const b = orb([0,1,0])
+  const c = orb([0,0,1])
+
+  const update = (now, data) => {
+    a.update(now,data)
+    b.update(now,data)
+    c.update(now,data)
+  }
+
+  return [(((new THREE.Group).add(a)).add(b)).add(c), update]
+}
+
+
+const singing = (listener, group) => {
+  const ns = [1,2,3,4,5,6,7,8,9]
+
+  for (let i=0; i< group.children.length; i++) {
+    // assigning a static frequency plays at a point in space
+    const {osc, speaker} = sounder(listener, {freq:400})
+
+    // using changing frequencies plays everywhere (not positional)
+    // const {osc, speaker} = sounder(listener, {notes})
+
+    group.children[i].add(speaker)
+  }
+  return group
+}
+
+
+
+const makeSoundscape2 = (listener) => {
+  const loader = new THREE.TextureLoader();
+  const texture = loader.load('https://threejsfundamentals.org/threejs/resources/images/star.png');
+
+  const [group, update] = trio()
+  metronome()
+  return {group: singing(listener,group), update}
+}
+
+
+const makeSoundscape1 = (listener) => {
   const group = new THREE.Group();
-  const updateBalloons = [];
-  const balloonGeometry = new THREE.IcosahedronBufferGeometry(5, 0);
-  for (let i = 0; i < 8; i++) {
-    const rowLight = new THREE.PointLight(0xffffff, 100, 50);
-    rowLight.power = 2000;
-    rowLight.decay = 2;
-    rowLight.position.y = -10;
-    for (let j = 0; j < 3; j++) {
-      const balloon = new THREE.Mesh(
-        balloonGeometry,
-        new THREE.MeshBasicMaterial({
-          color: 0xffffff,
-        }));
-      // if (j == i)
-      //   balloon.add(rowLight);
-      updateBalloons.push((now, byteFreqData) => {
-        balloon.position.y = 10;// + motion * (Math.sin(now / 10000 + i / 2. + j * 3.) * 10.);
-        analyser.getByteFrequencyData(buf);
-        balloon.material.color.setHSL((i + j) / 40 + now / 16000, 0.5, + (buf[i*10+j]) / 255 * 0.8);
+  const updates = [];
+
+  const root = 200
+  const notes = [root, root*5/4, (root*5*6/4/5)]
+
+  const pos = {x: 10, y: 25, z: 20}
+
+  const motionX = 10
+  const motionZ = 50
+  const rate = 10
+
+    for (let i = 0; i < 6; i++) {
+      const rowLight = new THREE.PointLight(0xffffff, 100, 50);
+      const balloonGeometry = new THREE.IcosahedronBufferGeometry(i+2, i);
+      rowLight.power = 2000;
+      rowLight.decay = 2;
+      rowLight.position.y = -10;
+
+      for (let j = 0; j < notes.length; j++) {
+        let {x,y,z} = pos
+        const balloon = new THREE.Mesh(
+          balloonGeometry,
+          new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+          }));
+        
+        const dx = (t) => 10 * Math.sin(t / 3000) + (i*50 * Math.sin(t/2000))
+        const dz = (t) => 20 * Math.sin(t / 2000) + (i*10)+Math.cos(t/(j+1))
+        const dy = (t) => 10 * Math.sin(t / 1000)
+
+        balloon.position.x = dx(0)
+        balloon.position.z = dz(0)
+        balloon.position.y = dy(0)
+
+        // const osc = balloon.osc = listener.context.createOscillator()
+        const gain = listener.context.createGain();
+        const {osc, speaker} = sounder(listener, {freq: notes[j] *  1.5 * i})
+        // gain.gain.value = 0.1;
+        // osc.connect(gain);
+        // osc.frequency.value = notes[j] *  1.5 * i
+        // osc.start();
+        group.add(balloon);
+
+        const analyser = listener.context.createAnalyser();
+        const buf = new Uint8Array(1024);
+        buf.name = (Math.random()).toString()
+        osc.connect(analyser);
+
+        const posSound = new THREE.PositionalAudio(listener);
+        // posSound.setNodeSource(gain);
+        // posSound.setRefDistance(100);
+        // posSound.setRolloffFactor(10);
+        // posSound.setDistanceModel('exponential');
+        // posSound.rotation.x = Math.PI;
+        balloon.add(speaker);
+
+        balloon.material.color.setHSL(Math.random(), Math.random(), Math.random());
+        updates.push((now, byteFreqData) => {
+        balloon.position.x = dx(now)
+        balloon.position.z = dz(now) 
+        balloon.position.y = dy(now)
       });
-      balloon.position.z = j * 20;
-      balloon.position.x = i * 20;
-      group.add(balloon);
-
-
-      const osc = listener.context.createOscillator();
-      osc.frequency.value = [1, 16/15, 9/8, 6/5, 4/3, 45/32, 6/5, 5/4][i] * (200 + 200 / (j+1));
-      osc.start();
-      const gain = listener.context.createGain();
-      osc.connect(gain);
-      gain.gain.value = 0.1;
-      osc.connect(gain);
-
-      const analyser = listener.context.createAnalyser();
-      const buf = new Uint8Array(1024);
-      osc.connect(analyser);
-
-      const posSound = new THREE.PositionalAudio(listener);
-      posSound.setNodeSource(gain);
-      posSound.setRefDistance(15);
-      posSound.setRolloffFactor(5);
-      posSound.setDistanceModel('exponential');
-      posSound.rotation.x = Math.PI;
-      balloon.add(posSound);
     }
   }
+
   return {
     group,
-    update(...args) {
-      for (const f of updateBalloons)
-        f(...args);
-    },
+    updates
   };
 }
 
@@ -222,10 +334,14 @@ const buildGlRoom = (canvas, config) => {
     }
   }
 
-  const css = makeCortlandSoundscape(listener);
-  css.group.position.x = 250;
-  css.group.position.z = -150;
-  scene.add(css.group);
+  // const soundfield = makeSoundscape1(listener);
+  // soundfield.group.position.x = 250;
+  // soundfield.group.position.z = -150;
+  // scene.add(soundfield.group);
+
+
+  const dancers = makeSoundscape2(listener)
+  scene.add(dancers.group)
 
   const floor = new THREE.Mesh(
     new THREE.CircleBufferGeometry(100000),
@@ -550,11 +666,17 @@ const buildGlRoom = (canvas, config) => {
       cube.rotation.x = Math.atan(1/Math.SQRT2) + flap;
       cube.rotation.y = now / 10000 * (i+1);
     }
-
+    
+    updateBalloons.push(dancers.update)
+    // updateBalloons.push(...soundfield.updates)
     updateBalloons.forEach(f => f(now, byteFreqData));
 
     renderer.render(scene, camera);
   };
+
+  const sing = (now) => {
+
+  }
 
   const clearGuests = () => {
     for (const k in guests) {
