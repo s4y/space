@@ -6,10 +6,14 @@ export default class PlayerControls {
     this.acceleration = [0, 0, 0];
     this.jumpStrength = 1;
     const direction = {
-      87: () => [0, 1, 0],
-      83: () => [0, -1, 0],
-      65: () => [-1, 0, 0],
-      68: () => [1, 0, 0],
+      87: () => [0, 1, 0], // up - w 
+      38: () => [0, 1, 0], // up - up arrow
+      83: () => [0, -1, 0], // down - s
+      40: () => [0, -1, 0], // down - down arrow
+      65: () => [-1, 0, 0], // left - a
+      37: () => [-1, 0, 0], // left - left arrow
+      68: () => [1, 0, 0], // right - d
+      39: () => [1, 0, 0], // right - right arrow
       32: () => [0, 0, this.jumpStrength],
     };
     const keysDown = {};
