@@ -120,7 +120,7 @@ const sendKnob = (name, value) => {
 knobs.onchange = sendKnob;
 
 try {
-  if (window.localStorage.knobs) {
+  if (false && window.localStorage.knobs) {
     const savedKnobs = JSON.parse(window.localStorage.knobs);
     console.log(savedKnobs);
     for (const knob in savedKnobs) {

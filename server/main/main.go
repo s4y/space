@@ -30,7 +30,8 @@ func readConfig(staticDir string) {
 
 var partyLine *WebRTCPartyLine
 var config struct {
-	RTCConfiguration json.RawMessage `json:"rtcConfiguration"`
+	Knobs            map[string]interface{} `json:"knobs"`
+	RTCConfiguration json.RawMessage        `json:"rtcConfiguration"`
 }
 
 type Knob struct {
@@ -123,6 +124,11 @@ func main() {
 	fmt.Printf("http://%s/\n", *httpAddr)
 
 	readConfig(*staticDir)
+
+	for k, v := range config.Knobs {
+		knobs[k] = v
+	}
+
 	partyLine = NewWebRTCPartyLine(config.RTCConfiguration)
 
 	ln, err := net.Listen("tcp", *httpAddr)
