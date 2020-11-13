@@ -9,10 +9,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sync"
 
 	"github.com/gorilla/websocket"
 	"github.com/s4y/reserve"
+	"github.com/s4y/space/knobs"
 	"github.com/s4y/space/world"
 )
 
@@ -34,13 +34,7 @@ var config struct {
 	RTCConfiguration json.RawMessage        `json:"rtcConfiguration"`
 }
 
-type Knob struct {
-	Name  string      `json:"name"`
-	Value interface{} `json:"value"`
-}
-
-var knobsMutex sync.RWMutex
-var knobs map[string]interface{} = make(map[string]interface{})
+var globalKnobs knobs.Knobs = knobs.Knobs{}
 
 func startManagementServer(managementAddr string) {
 	mux := http.NewServeMux()
@@ -89,6 +83,17 @@ func startManagementServer(managementAddr string) {
 					Id uint32 `json:"id"`
 				}{seq})
 		})
+		globalKnobs.Observe(ctx, knobs.KnobChanged, func(name string, value interface{}) {
+			ch <- world.MakeClientMessage(
+				"knob",
+				knobs.KnobMessage{
+					Name:  name,
+					Value: value,
+				})
+		})
+		for seq, g := range defaultWorld.GetGuests() {
+			ch <- world.MakeGuestUpdateMessage(seq, g)
+		}
 		var msg world.ClientMessage
 		for {
 			if err = conn.ReadJSON(&msg); err != nil {
@@ -96,14 +101,11 @@ func startManagementServer(managementAddr string) {
 			}
 			switch msg.Type {
 			case "setKnob":
-				var knob Knob
+				var knob knobs.KnobMessage
 				if err := json.Unmarshal(msg.Body, &knob); err != nil {
 					fmt.Println("knob unmarshal err", err)
 				}
-				knobsMutex.Lock()
-				knobs[knob.Name] = knob.Value
-				knobsMutex.Unlock()
-				defaultWorld.BroadcastFrom(0, world.MakeClientMessage("knob", knob))
+				globalKnobs.Set(knob.Name, knob.Value)
 			case "broadcast":
 				defaultWorld.BroadcastFrom(0, msg.Body)
 			default:
@@ -124,11 +126,6 @@ func main() {
 	fmt.Printf("http://%s/\n", *httpAddr)
 
 	readConfig(*staticDir)
-
-	for k, v := range config.Knobs {
-		knobs[k] = v
-	}
-
 	partyLine = NewWebRTCPartyLine(config.RTCConfiguration)
 
 	ln, err := net.Listen("tcp", *httpAddr)
@@ -148,6 +145,13 @@ func main() {
 		guest := world.MakeGuest(ctx, conn)
 		var msg world.ClientMessage
 		var seq uint32
+
+		globalKnobs.Observe(ctx, knobs.KnobChanged, func(name string, value interface{}) {
+			guest.Write(world.MakeClientMessage("knob", knobs.KnobMessage{
+				Name:  name,
+				Value: value,
+			}))
+		})
 
 		rtcPeer := WebRTCPartyLinePeer{
 			SendToPeer: func(message interface{}) {
@@ -210,11 +214,12 @@ func main() {
 				}
 				defaultWorld.SetGuestDebug(seq, "fps", fps)
 			case "getKnobs":
-				knobsMutex.RLock()
-				for name, value := range knobs {
-					guest.Write(world.MakeClientMessage("knob", Knob{name, value}))
+				for name, value := range globalKnobs.Get() {
+					guest.Write(world.MakeClientMessage("knob", knobs.KnobMessage{
+						Name:  name,
+						Value: value,
+					}))
 				}
-				knobsMutex.RUnlock()
 			case "rtc":
 				var messageIn struct {
 					To      uint32          `json:"to"`
