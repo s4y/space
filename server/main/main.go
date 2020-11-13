@@ -134,6 +134,10 @@ func main() {
 		log.Fatal(err)
 	}
 
+	for name, value := range config.Knobs {
+		globalKnobs.Set(name, value)
+	}
+
 	upgrader := websocket.Upgrader{}
 
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
