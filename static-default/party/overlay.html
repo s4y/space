@@ -85,6 +85,14 @@ body {
   padding: 1em;
 }
 
+body:not(.chatEnabled) #chat > ul {
+  display: none;
+}
+
+body:not(.chatEnabled) #chatForm {
+  display: none;
+}
+
 </style>
 
 <div id=videoMutedEl style="display: none">Camera off</div>
@@ -161,23 +169,31 @@ Service.get('userMedia', userMedia => {
   });
 });
 
-Service.get('chat', chat => {
-  const messages = document.querySelector("#chat > ul");
-  chat.observe('message', ({from, message}) => {
-    const li = document.createElement('li');
-    li.classList.add('message', from === chat.whoami ? 'self' : 'other');
-    li.textContent = message;
+(async () => {
+  const config = await (await fetch('/config.json')).json();
+  if (config.chat === false)
+    return;
 
-    messages.insertBefore(li, messages.firstChild);
-    li.scrollIntoView();
+  document.body.classList.add('chatEnabled');
+
+  Service.get('chat', chat => {
+    const messages = document.querySelector("#chat > ul");
+    chat.observe('message', ({from, message}) => {
+      const li = document.createElement('li');
+      li.classList.add('message', from === chat.whoami ? 'self' : 'other');
+      li.textContent = message;
+
+      messages.insertBefore(li, messages.firstChild);
+      li.scrollIntoView();
+    });
+
+    chatForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      chat.addMessage(chatForm.message.value);
+
+      chatForm.message.value = '';
+    });
   });
-
-  chatForm.addEventListener('submit', (event) => {
-    event.preventDefault();
-    chat.addMessage(chatForm.message.value);
-
-    chatForm.message.value = '';
-  });
-});
+})();
 
 </script>
