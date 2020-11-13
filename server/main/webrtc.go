@@ -288,12 +288,9 @@ func (p *WebRTCPartyLinePeer) addTrack(peer *WebRTCPartyLinePeer, track *webrtc.
 	go func() {
 		select {
 		case <-peer.ctx.Done():
-			if err := transceiver.Sender().Stop(); err != nil {
-				fmt.Println("error removing old track: ", err)
-			}
 			p.tasks <- func() {
-				if err := p.sendOffer(false); err != nil {
-					fmt.Println("error sending offer after removing track: ", err)
+				if err := p.peerConnection.RemoveTrack(transceiver.Sender()); err != nil {
+					fmt.Println("error removing old track: ", err)
 				}
 			}
 		case <-p.ctx.Done():
