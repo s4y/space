@@ -31,12 +31,12 @@ class Knobs {
 
   set(knob, value) {
     const config = this.config[knob];
-    if (!config)
-      throw new Error('unknown knob:', knob);
-    if (config.min)
-      value = Math.max(config.min, value);
-    if (config.max)
-      value = Math.min(config.max, value);
+    if (config) {
+      if (config.min)
+        value = Math.max(config.min, value);
+      if (config.max)
+        value = Math.min(config.max, value);
+    }
     this.knobs[knob] = value;
     this.onchange && this.onchange(knob, value);
   }
