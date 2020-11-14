@@ -51,16 +51,20 @@ const createStatsTracker = () => {
     },
     recordFps(fps) {
       this.fpsHistory.push(fps);
-      if (this.fpsHistory.length > 9)
+      if (this.fpsHistory.length > 10)
         this.fpsHistory.shift();
-      if (this.fpsHistory.length < 5)
+      if (this.fpsHistory.length < 10)
         return;
       const sortedFps = this.fpsHistory.slice().sort();
       const middle = (sortedFps.length + 1) / 2;
       const median = sortedFps[Math.floor(middle)];
       if (median < 29) {
         this.onPerformanceNeeded();
-        this.fpsHistory.length = 0;
+        this.fpsHistory.length = 5;
+      }
+      if (median > 50) {
+        this.onPerformanceGood();
+        this.fpsHistory.length = 5;
       }
     },
   };
@@ -221,8 +225,15 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
   window.addEventListener('resize', resize);
 
   stats.onPerformanceNeeded = () => {
-    if (downscale < 4) {
+    if (downscale < 3) {
       downscale++;
+      resize();
+    }
+  }
+
+  stats.onPerformanceGood = () => {
+    if (downscale > 1) {
+      downscale--;
       resize();
     }
   }
