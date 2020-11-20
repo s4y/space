@@ -462,7 +462,7 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
     group.add(light);
       
     const posSound = new THREE.PositionalAudio(listener);
-    posSound.setRefDistance(10);
+    posSound.setRefDistance(50);
     posSound.setRolloffFactor(1.5);
     posSound.setDistanceModel('exponential');
     posSound.setDirectionalCone(120, 230, 0.2);
