@@ -111,6 +111,7 @@ const stop = () => {
   for (const track of mediaStream.getTracks()) {
     track.stop();
     mediaStream.removeTrack(track);
+    rtcPeer.removeTrack(track);
   }
 }
 
@@ -129,9 +130,10 @@ castCamera.addEventListener('click', e => {
 
   navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: audioConstraints, })
     .then(stream => {
-      mediaStream = stream;
-      rtcPeer.setMediaStream(stream);
       preview.srcObject = stream;
+      for (const track of stream.getTracks())
+        mediaStream.addTrack(track)
+      rtcPeer.updateTracks()
     });
 });
 
@@ -140,8 +142,9 @@ castScreen.addEventListener('click', e => {
   stop();
   navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
     .then(stream => {
-      mediaStream = stream;
-      rtcPeer.setMediaStream(stream);
+      for (const track of stream.getTracks())
+        mediaStream.addTrack(track);
+      rtcPeer.updateTracks()
       preview.srcObject = stream;
     });
 });
