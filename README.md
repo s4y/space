@@ -2,6 +2,8 @@
 
 A 3D virtual space for parties. Actively in development.
 
+The first public space is called [Homeward Bound](https://homewardbound.theweeklyweekly.com/). Stop by if you'd like!
+
 ![](docs/example.jpg)
 
 ## Running
