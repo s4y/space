@@ -40,31 +40,42 @@ class Player {
     this.onchange();
   }
   applyAcceleration(acceleration) {
-    const apply = (v, a, min = -0.5, max = 0.5) => {
-      const vOut = Math.max(min, Math.min(max, v + a));
+    const apply = (v, a) => {
+      const vOut = v + a;
       return Math.abs(vOut) > 0.001 ? vOut : 0;
     };
     const { velocity } = this;
-    velocity[0] = apply(velocity[0], acceleration[0] * 0.05);
-    velocity[1] = apply(velocity[1], acceleration[1] * 0.05);
-    velocity[2] = apply(velocity[2], acceleration[2] * 0.05, -2);
+    velocity[0] = apply(velocity[0], acceleration[0] * 0.01);
+    velocity[1] = apply(velocity[1], acceleration[1] * 0.01);
+    velocity[2] = apply(velocity[2], acceleration[2] * 0.02, -2);
   }
   stepPhysics() {
     const now = performance.now();
+    const scale = 1;
     const delta = Math.min(500, this.lastPhysicsStep ? now - this.lastPhysicsStep : 0) * (60/1000);
     this.lastPhysicsStep = now;
     const { position, velocity } = this;
-    if (position[2] <= 0) {
+    // velocity[0] *= 0.9;
+    // velocity[1] *= 0.9;
+    // velocity[2] *= 0.9;
+    position[0] += velocity[0] * delta * scale;
+    position[1] += velocity[1] * delta * scale;
+    position[2] += velocity[2] * delta * 0.5;
+    let floorHeight = this.floorHeightAt
+    ? this.floorHeightAt(position[0], -position[1])
+    : 0;
+
+    if (position[2] <= floorHeight || (position[2] <= floorHeight + 0.2 && velocity[2] == 0)) {
       velocity[0] *= 0.9;
       velocity[1] *= 0.9;
       velocity[2] = Math.max(velocity[2], 0);
-      position[2] = 0;
+      position[2] = floorHeight;
     } else {
       velocity[2] -= 0.01;
     }
-    position[0] += velocity[0] * delta;
-    position[1] += velocity[1] * delta;
-    position[2] += velocity[2] * delta;
+    const velocityMagnitude = Math.sqrt(velocity.slice(0, 2).reduce((acc, x) => acc + x * x, 0));
+    if (velocityMagnitude > 1)
+      velocity.slice(0, 2).forEach((x, i) => velocity[i] = x / velocityMagnitude);
     this.onchange();
   }
 }
