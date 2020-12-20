@@ -52,16 +52,13 @@ const gestureWrangler = {
       return;
     const cb = () => ac.resume();
     ac.addEventListener('statechange', e => {
-      console.log('statechange', e);
       const idx = this.waitingForGesture.indexOf(cb);
       if (idx == -1)
         return;
       this.waitingForGesture.splice(idx, 1);
       if (!this.waitingForGesture.length)
         this.hidePrompt();
-      console.log('statechange', this.waitingForGesture);
     }, { once: true});
-    console.log(ac.state);
     this.waitingForGesture.push(cb);
     this.showPrompt();
   },
