@@ -12,8 +12,6 @@ import * as THREE from '/deps/three/build/three.module.js'
 import { GLTFLoader } from '/deps/three/examples/jsm/loaders/GLTFLoader.js'
 import { BufferGeometryUtils } from '/deps/three/examples/jsm/utils/BufferGeometryUtils.js'
 import Service from '/space/js/Service.js'
-import RTCPeer from '/space/js/RTCPeer.js'
-import RTCLoopback from '/space/js/RTCLoopback.js'
 
 Service.get('docent', docent => {});
 
@@ -113,17 +111,19 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
 
   // Work around for missing echo cancellation on many kinds of audio:
   // https://crbug.com/687574
-  if (navigator.userAgent.indexOf('Chrome') != -1) {
+  if (config.seeAndHear !== false && navigator.userAgent.indexOf('Chrome') != -1) {
     const loopbackDestination = listener.context.createMediaStreamDestination();
     const loopbackEl = document.createElement('audio');
-    const loopback = new RTCLoopback(stream => {
-      listener.gain.disconnect(listener.context.destination);
-      listener.gain.connect(loopbackDestination);
-      loopbackEl.srcObject = loopback.outputStream;
-      gestureWrangler.playVideo(loopbackEl);
-    });
+    import('/space/js/RTCLoopback.js').then(({ default: RTCLoopback }) => {
+      const loopback = new RTCLoopback(stream => {
+        listener.gain.disconnect(listener.context.destination);
+        listener.gain.connect(loopbackDestination);
+        loopbackEl.srcObject = loopback.outputStream;
+        gestureWrangler.playVideo(loopbackEl);
+      });
 
-    loopback.setInputStream(loopbackDestination.stream);
+      loopback.setInputStream(loopbackDestination.stream);
+    });
   }
 
   gestureWrangler.playAudioContext(listener.context);
@@ -139,18 +139,24 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
 
   const hemiLight = new THREE.HemisphereLight( 0x7FBBFF, 0x34002D, 1 );
   scene.add(hemiLight);
-  const playerCamera = new THREE.PerspectiveCamera(30);
-  playerCamera.rotation.order = 'YXZ';
-  playerCamera.rotation.y = Math.PI;
-  playerCamera.position.z -= 14;
-  playerCamera.position.y -= -6;
-  const playerRenderer = new THREE.WebGLRenderer({
-    canvas: playerCanvas,
-    alpha: true,
-    antialias: false,
-    powerPreference: 'high-performance',
-  });
-  playerRenderer.setClearColor(renderer.clearColor);
+  let playerCamera;
+  let playerRenderer;
+  if (config.seeAndHear !== false) {
+    playerCamera = new THREE.PerspectiveCamera(30);
+    playerCamera.rotation.order = 'YXZ';
+    playerCamera.rotation.y = Math.PI;
+    playerCamera.position.z -= 14;
+    playerCamera.position.y -= -6;
+    playerRenderer = new THREE.WebGLRenderer({
+      canvas: playerCanvas,
+      alpha: true,
+      antialias: false,
+      powerPreference: 'high-performance',
+    });
+    playerRenderer.setClearColor(renderer.clearColor);
+  } else {
+    playerCanvas.style.display = 'none';
+  }
 
   for (const props of [
     { p: [-10, 1, 0], power: 1000 },
@@ -700,30 +706,32 @@ const start = () => {
     gestureWrangler = gw;
   });
 
-  let userMedia;
-  Service.get('userMedia', um => {
-    userMedia = um;
-    userMedia.start();
-  });
-
-  window.top.addEventListener('keydown', e => {
-    switch (e.keyCode) {
-      case 77: // m
-        userMedia.toggleAudioMuted();
-        break;
-      case 86: // v
-        userMedia.toggleVideoMuted();
-        break;
-      default:
-        return; // without preventing default
-    }
-    e.preventDefault();
-  });
-
   return fetch('/config.json')
     .then(r => r.json())
     .then(config => {
       timeOffset = new Date() - config.zeroTime
+
+      if (config.seeAndHear !== false) {
+        let userMedia;
+        Service.get('userMedia', um => {
+          userMedia = um;
+          userMedia.start();
+        });
+
+        window.top.addEventListener('keydown', e => {
+          switch (e.keyCode) {
+            case 77: // m
+              userMedia.toggleAudioMuted();
+              break;
+            case 86: // v
+              userMedia.toggleVideoMuted();
+              break;
+            default:
+              return; // without preventing default
+          }
+          e.preventDefault();
+        });
+      }
 
       let builtRoom = false;
       Service.get('room', room => {

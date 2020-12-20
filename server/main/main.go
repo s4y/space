@@ -31,6 +31,7 @@ func readConfig(staticDir string) {
 var partyLine *WebRTCPartyLine
 var config struct {
 	Knobs            map[string]interface{} `json:"knobs"`
+	SeeAndHear       *bool                  `json:"seeAndHear,omitempty"`
 	Chat             *bool                  `json:"chat,omitempty"`
 	RTCConfiguration json.RawMessage        `json:"rtcConfiguration"`
 }
@@ -127,7 +128,10 @@ func main() {
 	fmt.Printf("http://%s/\n", *httpAddr)
 
 	readConfig(*staticDir)
-	partyLine = NewWebRTCPartyLine(config.RTCConfiguration)
+	if config.SeeAndHear != nil && *config.SeeAndHear == false {
+	} else {
+		partyLine = NewWebRTCPartyLine(config.RTCConfiguration)
+	}
 
 	ln, err := net.Listen("tcp", *httpAddr)
 	if err != nil {
@@ -193,11 +197,12 @@ func main() {
 					rtcPeer.UserInfo = seq
 					defaultWorld.UpdateGuest(seq)
 
-					if err := partyLine.AddPeer(ctx, &rtcPeer); err != nil {
-						fmt.Println("err creating peerconnection ", seq, err)
-						return
+					if partyLine != nil {
+						if err := partyLine.AddPeer(ctx, &rtcPeer); err != nil {
+							fmt.Println("err creating peerconnection ", seq, err)
+							return
+						}
 					}
-
 				}
 			case "state":
 				if seq == 0 {
@@ -226,6 +231,9 @@ func main() {
 					}))
 				}
 			case "rtc":
+				if partyLine == nil {
+					break
+				}
 				var messageIn struct {
 					To      uint32          `json:"to"`
 					Message json.RawMessage `json:"message"`

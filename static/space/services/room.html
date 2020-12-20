@@ -126,7 +126,6 @@ class Room {
     ws.observe('hello', body => {
       this.whoami = body;
       this.observers.fire('whoami', body);
-      this.connectRTC()
     });
     ws.observe('guestUpdate', body => {
       this.updateGuest(body.id, body.state);
@@ -135,6 +134,8 @@ class Room {
       this.removeGuest(body.id);
     });
     ws.observe('rtc', body => {
+      if (!this.rtcPeer)
+        this.connectRTC()
       this.handleRTC(body.from, body.message);
     });
     ws.observe('mapTrack', body => {
@@ -251,7 +252,7 @@ Service.get('userMedia', userMedia => {
 Service.get('docent', docent => {
   docent.observe('reconnect', what => {
     if (what == 'webrtc')
-      if (room.whoami) room.connectRTC()
+      if (room.rtcPeer) room.connectRTC()
   });
 });
 
