@@ -15,10 +15,12 @@ const gestureWrangler = {
     });
   },
   showPrompt() {
-    this.promptEl.style.display = '';
+    if (this.promptEl)
+      this.promptEl.style.display = '';
   },
   hidePrompt() {
-    this.promptEl.style.display = 'none';
+    if (this.promptEl)
+      this.promptEl.style.display = 'none';
   },
   onGesture() {
     while (this.waitingForGesture.length)
