@@ -55,6 +55,13 @@ import Service from '/space/js/Service.js';
 
 Service.setHost(serviceFrames);
 
+const hqs = location.hash
+  .substr(1)
+  .split('&')
+  .filter(v => v)
+  .map(c => c.split('=').map(decodeURIComponent))
+  .reduce((params, [k, v]) => (params[k] = v, params), {});
+
 let gestureWrangler;
 Service.get('gestureWrangler', w => {
   gestureWrangler = w;
@@ -116,7 +123,7 @@ const partyFrame = document.createElement('iframe');
 partyFrame.id = 'partyFrame';
 partyFrame.src = 'party/';
 
-if (sessionStorage.inParty) {
+if (('skipSplash' in hqs) || sessionStorage.inParty) {
   window.waitForGesture = false;
   document.body.appendChild(partyFrame);
 } else {
