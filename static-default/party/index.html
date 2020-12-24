@@ -173,7 +173,13 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
   }
 
   const guests = {};
-  let mediaStream = null;
+
+  let musicGain = listener.context.createGain();
+  musicGain.connect(musicAnalyser);
+
+  Service.get('music', music => {
+    musicGain.connect(music.musicGain);
+  });
 
   scene.add(createSky());
 
@@ -306,6 +312,9 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
     if (guest)
       return guest;
 
+    if (remoteGuest.state.role in specialGuestRoles)
+      return guests[id] = specialGuestRoles[remoteGuest.state.role](id, remoteGuest);
+
     const geometry = new THREE.BoxBufferGeometry(2.5, 2.5, 2.5);
     const material = new THREE.MeshPhongMaterial( { color: 0xaaaaaa, emissive: 0x777700 } );
     const cube = new THREE.Mesh( geometry, material );
@@ -425,6 +434,28 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
     return ret;
   };
 
+  const specialGuestRoles = {
+    dj: (id, remoteGuest) => {
+      let source;
+
+      return {
+        destroy() {
+          if (source)
+            source.disconnect();
+        },
+        set videoTrack(newVideoTrack) {
+          console.log('why does the dj have video?');
+        },
+        set audioTrack(newAudioTrack) {
+          if (source)
+            source.disconnect();
+          source = listener.context.createMediaStreamSource(new MediaStream([newAudioTrack]));
+          source.connect(musicGain);
+        },
+      };
+    },
+  };
+
   let projectorId = null;
 
   const updateGuest = (id, remoteGuest) => {
@@ -433,13 +464,15 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
       return;
     }
     const guest = getOrCreateGuest(id, remoteGuest);
-    const { state } = remoteGuest;
-    guest.group.rotation.y = -state.look[0];
-    guest.head.rotation.x = -state.look[1];
+    if (guest.group) {
+      const { state } = remoteGuest;
+      guest.group.rotation.y = -state.look[0];
+      guest.head.rotation.x = -state.look[1];
 
-    guest.group.position.x = state.position[0];
-    guest.group.position.z = -state.position[1];
-    guest.group.position.y = state.position[2];
+      guest.group.position.x = state.position[0];
+      guest.group.position.z = -state.position[1];
+      guest.group.position.y = state.position[2];
+    }
   }
 
   const updateMedia = (id, { videoTrack, audioTrack }) => {
@@ -460,14 +493,15 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
     if (!guest)
       return;
 
-    if (partSound) {
+    if (partSound && guest.posSound) {
       const partSource = THREE.AudioContext.getContext().createBufferSource();
       partSource.buffer = partSound;
       partSource.connect(guest.posSound.getOutput());
       partSource.start();
     }
 
-    guest.group.parent.remove(guest.group);
+    if (guest.group)
+      guest.group.parent.remove(guest.group);
     guest.destroy();
     delete guests[id];
   };

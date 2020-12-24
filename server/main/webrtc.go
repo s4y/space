@@ -17,7 +17,7 @@ import (
 // Based on https://github.com/pion/webrtc/tree/master/examples/broadcast
 
 const (
-	rtcpPLIInterval = time.Second * 1
+	rtcpPLIInterval = time.Second * 3
 )
 
 type WebRTCPartyLine struct {
@@ -140,8 +140,16 @@ func (pl *WebRTCPartyLine) AddPeer(ctx context.Context, p *WebRTCPartyLinePeer) 
 			}()
 
 			go func() {
+				packets := []rtcp.Packet{
+					&rtcp.ReceiverEstimatedMaximumBitrate{
+						SenderSSRC: track.SSRC(),
+						Bitrate:    5000000,
+						SSRCs:      []uint32{track.SSRC()},
+					},
+					&rtcp.PictureLossIndication{MediaSSRC: track.SSRC()},
+				}
 				for range pliChan {
-					if rtcpSendErr := p.peerConnection.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{MediaSSRC: track.SSRC()}}); rtcpSendErr != nil {
+					if rtcpSendErr := p.peerConnection.WriteRTCP(packets); rtcpSendErr != nil {
 						fmt.Println(rtcpSendErr)
 					}
 				}

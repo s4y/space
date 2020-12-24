@@ -7,11 +7,7 @@ Service.get('docent', docent => {});
 
 const music = {
   normalVolume: 0,
-  resume() {
-    this.ac.resume();
-  },
-  start() {
-    const ac = new (window.AudioContext || window.webkitAudioContext)();
+  start(ac) {
     this.ac = ac;
 
     const audioEl = document.createElement('audio');
@@ -49,15 +45,17 @@ const music = {
 };
 
 Service.get('knobs', knobs => {
-  music.start();
-  Service.register('music', context => music);
-  knobs.observe('music.volumeRampRate', v => {
-    music.volumeRampRate = v;
-  }, 1);
-  knobs.observe('music.volume', v => {
-    music.normalVolume = v;
-    music.updateVolume();
-  }, 0);
+  Service.get('room', room => {
+    music.start(room.ac);
+    Service.register('music', context => music);
+    knobs.observe('music.volumeRampRate', v => {
+      music.volumeRampRate = v;
+    }, 1);
+    knobs.observe('music.volume', v => {
+      music.normalVolume = v;
+      music.updateVolume();
+    }, 0);
+  });
 });
 
 </script>
