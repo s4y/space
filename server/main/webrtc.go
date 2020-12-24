@@ -38,9 +38,10 @@ type WebRTCPartyLinePeer struct {
 	makingOffer      bool
 	sendAnotherOffer bool
 
-	UserInfo   uint32
-	SendToPeer func(interface{})
-	MapTrack   func(string, uint32)
+	UserInfo     uint32
+	MaxBandwidth uint64
+	SendToPeer   func(interface{})
+	MapTrack     func(string, uint32)
 }
 
 func NewWebRTCPartyLine(configIn json.RawMessage) *WebRTCPartyLine {
@@ -143,7 +144,7 @@ func (pl *WebRTCPartyLine) AddPeer(ctx context.Context, p *WebRTCPartyLinePeer) 
 				packets := []rtcp.Packet{
 					&rtcp.ReceiverEstimatedMaximumBitrate{
 						SenderSSRC: track.SSRC(),
-						Bitrate:    5000000,
+						Bitrate:    p.MaxBandwidth,
 						SSRCs:      []uint32{track.SSRC()},
 					},
 					&rtcp.PictureLossIndication{MediaSSRC: track.SSRC()},

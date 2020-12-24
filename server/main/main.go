@@ -175,6 +175,7 @@ func main() {
 					Id  uint32 `json:"id"`
 				}{mid, id}))
 			},
+			MaxBandwidth: 500000,
 		}
 
 		for {
@@ -193,6 +194,9 @@ func main() {
 						return
 					}
 					guest.Public.GuestState = state
+					if state.Role == "cast" {
+						rtcPeer.MaxBandwidth = 5000000
+					}
 					seq = defaultWorld.AddGuest(ctx, guest)
 					rtcPeer.UserInfo = seq
 					defaultWorld.UpdateGuest(seq)
