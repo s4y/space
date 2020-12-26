@@ -743,7 +743,7 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
     videoTexture.magFilter = THREE.LinearFilter;
     videoTexture.format = THREE.RGBFormat;
     // videoTexture.offset.set(-0.25, 0);
-    mesh.material = new THREE.MeshPhongMaterial({
+    mesh.material = new THREE.MeshBasicMaterial({
       color:0xffffff,
       side: THREE.DoubleSide,
       map: videoTexture,
