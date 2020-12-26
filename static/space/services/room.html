@@ -9,6 +9,7 @@ class Player {
   constructor(onchange, state = { position: [], look: [], }) {
     this.onchange = onchange;
     this.position = [Math.random() * 20 - 10, -90 + Math.random() * 10 - 5, 0];
+    this.gravityEnabled = true;
 
     // Gingerly unpack the saved position from sessionStorage. If anything
     // isn't a reasonable value, use the default.
@@ -45,9 +46,10 @@ class Player {
       return Math.abs(vOut) > 0.001 ? vOut : 0;
     };
     const { velocity } = this;
-    velocity[0] = apply(velocity[0], acceleration[0] * 0.01);
-    velocity[1] = apply(velocity[1], acceleration[1] * 0.01);
-    velocity[2] = apply(velocity[2], acceleration[2] * 0.02, -2);
+    // console.log('apply', acceleration);
+    velocity[0] = apply(velocity[0], acceleration[0] * 0.05);
+    velocity[1] = apply(velocity[1], acceleration[1] * 0.05);
+    velocity[2] = apply(velocity[2], acceleration[2] * 0.01);
   }
   stepPhysics() {
     const now = performance.now();
@@ -68,10 +70,15 @@ class Player {
     if (position[2] <= floorHeight || (position[2] <= floorHeight + 0.2 && velocity[2] == 0)) {
       velocity[0] *= 0.9;
       velocity[1] *= 0.9;
-      velocity[2] = Math.max(velocity[2], 0);
+      velocity[2] = Math.max(velocity[2] * 0.9, 0);
       position[2] = floorHeight;
     } else {
-      velocity[2] -= 0.01;
+      velocity[0] *= 0.999;
+      velocity[1] *= 0.999;
+      if (this.gravityEnabled)
+        velocity[2] -= 0.1;
+      else
+        velocity[2] *= 0.9;
     }
     const velocityMagnitude = Math.sqrt(velocity.slice(0, 2).reduce((acc, x) => acc + x * x, 0));
     if (velocityMagnitude > 1)

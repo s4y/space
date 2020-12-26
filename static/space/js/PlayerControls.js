@@ -41,6 +41,8 @@ export default class PlayerControls {
         keysDown[e.keyCode] = down;
         updateAcceleration();
         e.preventDefault();
+      } else if (e.keyCode == 16) {
+        this.player.gravityEnabled = !down;
       }
     };
 
@@ -51,7 +53,7 @@ export default class PlayerControls {
     Service.get('knobs', knobs => {
       knobs.observe('physics.jumpStrength', jumpStrength => {
         this.jumpStrength = jumpStrength;
-      }, 1);
+      }, 20);
     });
 
     const moveListener = e => {
@@ -66,6 +68,7 @@ export default class PlayerControls {
       look[0] = look[0] % (Math.PI * 2);
       look[1] = Math.min(Math.PI / 2, look[1]);
       look[1] = Math.max(-Math.PI / 2, look[1]);
+      updateAcceleration();
     }
 
     const topDoc = window.top.document;
