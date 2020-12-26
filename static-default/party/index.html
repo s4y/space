@@ -69,6 +69,182 @@ const createStatsTracker = () => {
 };
 const stats = createStatsTracker();
 
+class World {
+  constructor(configPath, globals) {
+    this.configURL = new URL(configPath, location);
+    this.globals = globals;
+    this.worldConfig = null;
+    this.world = {};
+    this.moduleURLs = {};
+    this.modules = {};
+    this.observersByType = {};
+    this.externalObjs = [];
+    this.group = new THREE.Group();
+
+    window.addEventListener('sourcechange', async e => {
+      if (e.detail == this.configURL.href) {
+        e.preventDefault();
+        this.refresh();
+      } else if (e.detail in this.moduleURLs) {
+        e.preventDefault();
+        const changedModule = this.moduleURLs[e.detail];
+        const mod = await this.refreshModule(changedModule);
+        this.refresh(changedModule);
+        const observers = this.observersByType[changedModule];
+        if (!observers)
+          return;
+        for (const observer of observers)
+          observer(mod.default);
+      }
+    });
+    this.refresh();
+  }
+  update(camera, renderer) {
+    const frustum = new THREE.Frustum();
+    frustum.setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(
+      camera.projectionMatrix,
+      camera.matrixWorldInverse));
+    const objs = [];
+    for (const k in this.world) {
+      const obj = this.world[k];
+      for (const sceneObj of obj.scene) {
+        if (!sceneObj)
+          continue;
+        objs.push({ parent: obj, obj: sceneObj });
+      }
+    }
+    for (const obj of this.externalObjs)
+      objs.push({ obj });
+    for (const obj of objs) {
+      const { parent, obj: sceneObj } = obj;
+      if (!sceneObj.update)
+        continue;
+      if (sceneObj.boundingBox) {
+        const box = new THREE.Box3();
+        box.copy(sceneObj.boundingBox);
+        sceneObj.group.updateMatrix();
+        box.applyMatrix4(sceneObj.group.matrixWorld);
+        if (!frustum.intersectsBox(box))
+          continue;
+      }
+      try {
+        sceneObj.update(camera, renderer, parent);
+      } catch(e) {
+        console.log(sceneObj, 'error in update', e);
+      }
+    }
+  }
+  register(obj) {
+    this.externalObjs.push(obj);
+  }
+  unregister(obj) {
+    this.externalObjs.splice(this.externalObjs.indexOf(obj), 1);
+  }
+  getModule(name) {
+    return this.modules[name] || this.refreshModule(name);
+  }
+  refreshModule(name) {
+    const base = `./types/${name}.js`;
+    const url = new URL(base, location.href).href;
+    const isReload = this.moduleURLs[url] ? true : false;
+    this.moduleURLs[url] = name;
+    return this.modules[name] = import(isReload ? `${base}?bust=${Date.now()}` : base);
+  }
+  addTypeObserver(type, cb) {
+    const observers = this.observersByType[type] || (this.observersByType[type] = []);
+    observers.push(cb);
+    this.getModule(type).then(mod => cb(mod.default));
+  }
+  removeTypeObserver(type, cb) {
+    const observers = this.observersByType[type];
+    observers.splice(observers.indexOf(cb), 1);
+  }
+  async refresh(changedModule) {
+    const applyPlacement = (obj, placement) => {
+      if (!placement)
+        return;
+      if (placement.scale)
+        obj.scale.set(...placement.scale);
+      if (placement.position)
+        obj.position.set(...placement.position);
+      if (placement.rotation)
+        // obj.rotation.set(...placement.rotation.map(radians => radians * (180/Math.PI)));
+        obj.rotation.set(...placement.rotation);
+    };
+
+    const newWorldSource = await fetch(this.configURL).then(w => w.text());
+    const newWorld = new Function(newWorldSource)();
+    const oldKeys = new Set(Object.keys(this.world));
+    for (const obj of newWorld) {
+      const oldObj = this.world[obj.id];
+      let needRefresh = false;
+      for (const sceneObj of obj.scene) {
+        if (sceneObj.type == changedModule) {
+          needRefresh = true;
+          break;
+        }
+      }
+      if (needRefresh)
+        continue;
+      if (oldObj && JSON.stringify(oldObj.config) == JSON.stringify(obj))
+        oldKeys.delete(obj.id);
+    }
+    const oldWorld = {};
+    for (const k of oldKeys) {
+      oldWorld[k] = this.world[k];
+      delete this.world[k];
+    }
+    this.worldConfig = newWorld;
+    const modLoads = [];
+    const loadCbs = [];
+    for (const objConfig of this.worldConfig) {
+      if (objConfig.id in this.world)
+        continue;
+      if (objConfig.enabled == false)
+        continue;
+      const oldObj = oldWorld[objConfig.id];
+      const obj = this.world[objConfig.id] = {
+        config: objConfig,
+        scene: [],
+        group: new THREE.Group(),
+      };
+      this.group.add(obj.group);
+      applyPlacement(obj.group, objConfig.placement);
+      for (const sceneObjConfig of objConfig.scene) {
+        if (sceneObjConfig.enabled == false)
+          continue;
+        const idx = obj.scene.push(null)-1;
+        modLoads.push(this.getModule(sceneObjConfig.type).then(mod => {
+          const Type = mod.default;
+          const args = [sceneObjConfig.params || {}, this.globals, this.world, oldObj && oldObj.scene[idx]];
+          const instance = obj.scene[idx] = new Type(...args);
+          if (instance.load)
+            loadCbs.push(() => instance.load(...args));
+          obj.group.add(instance.group);
+          applyPlacement(instance.group, sceneObjConfig.placement);
+        }).catch(e => {
+          console.log(e, e.stack);
+          obj.scene.splice(idx, 1);
+        }));
+      }
+    }
+    await Promise.all(modLoads);
+    await Promise.all(loadCbs.map(cb => cb()));
+    for (const k in oldWorld) {
+      const obj = oldWorld[k];
+      this.group.remove(obj.group);
+      obj.group.traverse(obj => {
+        if (obj.dispose)
+          obj.dispose();
+      });
+      for (const sceneObj of obj.scene) {
+        if (sceneObj && sceneObj.dispose)
+          sceneObj.dispose();
+      }
+    }
+  }
+}
+
 // Based on code by Adam Quinn (https://github.com/agquinn01)
 const createSky = () => {
   const sky = new THREE.Group();
@@ -180,6 +356,14 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
   Service.get('music', music => {
     musicGain.connect(music.musicGain);
   });
+
+
+  let worldGlobals = {
+    config, scene, listener, renderer, gestureWrangler, guests, ac: listener.context,
+    musicGain,
+  };
+  let world = new World('world.js', worldGlobals);
+  scene.add(world.group);
 
   scene.add(createSky());
 
@@ -507,7 +691,7 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
   };
 
   const cubez = [];
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 0; i++) {
     const size = 20 - (i * 0.1);
     const cube = new THREE.Mesh(
       new THREE.BoxBufferGeometry(size, 1, size),
@@ -598,6 +782,8 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
 
     if (musicAnalyser)
       musicAnalyser.getByteFrequencyData(byteFreqData);
+
+    world.update(camera, renderer);
 
     for (let i = 0; i < cubez.length; i++) {
       const cube = cubez[i];
