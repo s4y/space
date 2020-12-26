@@ -549,6 +549,11 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
     videoEl.muted = true;
     posSound.setMediaElementSource(videoEl);
 
+    videoEl.addEventListener('resize', e => {
+      mesh.geometry = new THREE.PlaneBufferGeometry(size * videoEl.videoWidth / videoEl.videoHeight, size);
+      mesh.position.y = size / 2;
+    });
+
     const videoTexture = new THREE.VideoTexture(videoEl);
     videoTexture.minFilter = THREE.LinearFilter;
     videoTexture.magFilter = THREE.LinearFilter;
