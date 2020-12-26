@@ -73,10 +73,10 @@ export default class RTCPeer {
     const {pc} = this;
     if (name == 'offer') {
       await pc.setRemoteDescription(value)
-      if (pc.setLocalDescription.length > 0)
-        await pc.setLocalDescription(await pc.createAnswer(pc.remoteDescription)); // Legacy
-      else
-        await pc.setLocalDescription();
+      const answer = await pc.createAnswer(pc.remoteDescription);
+      if (this.tweakSDP)
+        answer.sdp = this.tweakSDP(answer.sdp);
+      await pc.setLocalDescription(answer);
       this.sendToPeer(['answer', pc.localDescription]);
     } else if (name == 'map') {
       this.midMap = value;

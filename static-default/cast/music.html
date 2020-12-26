@@ -7,12 +7,9 @@
 }
 
 </style>
-<select id=videoDevices></select>
 <select id=audioDevices></select>
-<button id=castCamera>Cast camera</button>
-<button id=castScreen>Cast screen</button>
-<button id=stopCasting>Stop</button>
-<video id=preview autoplay muted controls playsinline style="max-width:100vw; display: block;"></video>
+<button id=castCamera>Start audio</button>
+<audio id=preview autoplay muted controls style="display: block;"></audio>
 <div id=serviceFrames></div>
 <script type=module>
 
@@ -43,7 +40,7 @@ Service.get('ws', ws => {
         });
       },
       mediaStream,
-      tweakSDP: sdp => sdp.replace('useinbandfec=1', 'useinbandfec=1; stereo=1; maxaveragebitrate=510000'),
+      tweakSDP: sdp => sdp.replace('useinbandfec=1', 'useinbandfec=1;stereo=1;sprop-stereo=1;maxaveragebitrate=510000'),
       onerror() {
         ws.bounce();
       },
@@ -88,13 +85,11 @@ class DeviceList {
   }
 }
 
-const videoDevices = new DeviceList(document.getElementById('videoDevices'), 'videoCastDevice');
 const audioDevices = new DeviceList(document.getElementById('audioDevices'), 'audioCastDevice');
 
 const refreshDeviceList = () => {
   navigator.mediaDevices.enumerateDevices()
     .then(devs => {
-      videoDevices.setDevices(devs.filter(d => d.kind == 'videoinput'));
       audioDevices.setDevices(devs.filter(d => d.kind == 'audioinput'));
     });
 };
@@ -117,12 +112,6 @@ const stop = () => {
 castCamera.addEventListener('click', e => {
   e.preventDefault();
   stop();
-  const videoConstraints = {
-    width: 1280,
-    aspectRatio: 1920/1080,
-  };
-  if (videoDevices.selectedDeviceId)
-    videoConstraints.deviceId = { exact: videoDevices.selectedDeviceId };
   const audioConstraints = {
     noiseReduction: false,
     echoCancellation: false,
@@ -139,18 +128,5 @@ castCamera.addEventListener('click', e => {
       preview.srcObject = stream;
     });
 });
-
-castScreen.addEventListener('click', e => {
-  e.preventDefault();
-  stop();
-  navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
-    .then(stream => {
-      for (const track of stream.getTracks())
-        mediaStream.addTrack(track)
-      rtcPeer.updateTracks()
-      preview.srcObject = stream;
-    });
-});
-
 
 </script>

@@ -24,7 +24,10 @@ export default class RTCLoopback {
 
     pc1.onnegotiationneeded = e => {
       pc1.createOffer()
-        .then(offer => pc1.setLocalDescription(offer))
+        .then(offer => {
+          offer.sdp = tweakSDP(offer.sdp);
+          return pc1.setLocalDescription(offer);
+        })
         .then(() => pc2.setRemoteDescription(pc1.localDescription))
         .then(() => pc2.createAnswer())
         .then(answer => {
