@@ -313,6 +313,38 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
   renderer.setClearColor(new THREE.Color().setHSL(0.5, 0.7, 0.01), 1);
   renderer.physicallyCorrectLights = true;
 
+  renderer.xr.enabled = true;
+
+  let xrSession = null;
+
+  const startXRSession = async () => {
+    console.log('start start');
+    xrSession = await navigator.xr.requestSession(
+      'immersive-vr', {
+        optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'],
+      });
+    renderer.xr.setSession(xrSession);
+  };
+
+  if (false && navigator.xr) {
+    navigator.xr.isSessionSupported('immersive-vr').then(supported => {
+      if (!supported)
+        return;
+      window.top.addEventListener('keydown', e => {
+        if (!(e.code == 'KeyV' && e.shiftKey))
+          return;
+        e.preventDefault();
+        if (xrSession) {
+          xrSession.end();
+          xrSession = null;
+        } else {
+          startXRSession();
+        }
+      });
+    });
+  }
+
+
   const hemiLight = new THREE.HemisphereLight( 0x7FBBFF, 0x34002D, 1 );
   scene.add(hemiLight);
   let playerCamera;
@@ -780,6 +812,25 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
     camera.rotation.y = -look[0];
     camera.rotation.x = -look[1];
 
+    const vrScale = 0.16;
+    if (renderer.xr.isPresenting) {
+      scene.scale.set(vrScale, vrScale, vrScale);
+      // camera.parent && camera.parent.remove(camera);
+      renderer.xr.getCamera(camera);
+      const v = new THREE.Vector3();
+      const dir = new THREE.Vector3(0, 0, 1);
+      v.applyMatrix4(camera.matrixWorld);
+      dir.applyMatrix4(camera.matrixWorld);
+      dir.normalize();
+      // if (lastCameraPosition) {
+      //   v.x -= lastCameraPosition.x;
+      //   v.z -= lastCameraPosition.z
+      // }
+      // lastCameraPosition = v;
+      // movePlayer(v.x / vrScale, -v.z / vrScale, -dir.x, dir.y - Math.PI/4);
+      // console.log(position, v);
+    }
+
     if (musicAnalyser)
       musicAnalyser.getByteFrequencyData(byteFreqData);
 
@@ -825,7 +876,7 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
 
   resize();
   return {
-    draw, updateGuest, removeGuest, updateMedia, clearGuests
+    draw, updateGuest, removeGuest, updateMedia, clearGuests, renderer
   };
 }
 
@@ -839,7 +890,6 @@ const buildRoom = (el, config) => {
   const ret = {
   };
 
-  let animationFrame;
   let lastLook, lastPosition;
   const equalVectors = (a, b) => {
     if (!(a && b))
@@ -859,7 +909,6 @@ const buildRoom = (el, config) => {
     const { position, look } = player;
     glRoom.draw({ now, position, look });
     stats && stats.end();
-    animationFrame = requestAnimationFrame(draw);
   };
 
   Service.get('room', room => {
@@ -886,8 +935,9 @@ const buildRoom = (el, config) => {
     for (const k in room.guests)
       glRoom.updateGuest(k, room.guests[k]);
 
-    if (!animationFrame)
-      animationFrame = requestAnimationFrame(draw);
+    glRoom.renderer.setAnimationLoop(() => {
+      draw(performance.now());
+    });
 
     fetch('/sounds/join.mp3')
       .then(r => r.arrayBuffer())
