@@ -794,8 +794,10 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
       setStream: stream => {
         videoEl.srcObject = stream;
         gestureWrangler.playVideo(videoEl);
-        posSound.setMediaStreamSource(stream);
-        posSound.source.connect(musicAnalyser);
+        if (stream.getAudioTracks().length) {
+          posSound.setMediaStreamSource(stream);
+          posSound.source.connect(musicAnalyser);
+        }
       }
     };
   };
