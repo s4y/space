@@ -326,7 +326,7 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
     renderer.xr.setSession(xrSession);
   };
 
-  if (false && navigator.xr) {
+  if (navigator.xr) {
     navigator.xr.isSessionSupported('immersive-vr').then(supported => {
       if (!supported)
         return;

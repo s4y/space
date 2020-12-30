@@ -73,8 +73,8 @@ class Player {
       velocity[2] = Math.max(velocity[2] * 0.9, 0);
       position[2] = floorHeight;
     } else {
-      velocity[0] *= 0.999;
-      velocity[1] *= 0.999;
+      velocity[0] *= 0.99;
+      velocity[1] *= 0.99;
       if (this.gravityEnabled)
         velocity[2] -= 0.1;
       else
