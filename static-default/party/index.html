@@ -621,8 +621,10 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
       group, head, body, posSound,
       destroy() {
         videoEl.srcObject = null;
-        if (posSound.source)
+        try {
+          posSound.getOutput().disconnect();
           posSound.disconnect();
+        } catch(e){}
       },
       set videoTrack(newVideoTrack) {
         if (newVideoTrack == videoTrack)
