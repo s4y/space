@@ -218,8 +218,13 @@ class World {
           const Type = mod.default;
           const args = [sceneObjConfig.params || {}, this.globals, this.world, oldObj && oldObj.scene[idx]];
           const instance = obj.scene[idx] = new Type(...args);
-          if (instance.load)
-            loadCbs.push(() => instance.load(...args));
+          if (instance.load) {
+            // Give each instance a `loaded` promise right away, but don't kick off
+            // any loads until all instances have one.
+            instance.loaded = new Promise((resolve, reject) => {
+              loadCbs.push(() => instance.load(...args).then(resolve).catch(reject));
+            });
+          }
           obj.group.add(instance.group);
           applyPlacement(instance.group, sceneObjConfig.placement);
         }).catch(e => {
