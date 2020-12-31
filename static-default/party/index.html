@@ -579,7 +579,6 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
     const posSound = new THREE.PositionalAudio(listener);
     posSound.setRefDistance(posAudioParams.refDistance);
     posSound.setRolloffFactor(posAudioParams.rolloffFactor);
-    posSound.setDistanceModel('exponential');
     posSound.setDirectionalCone(120, 230, 0.2);
     posSound.rotation.y = Math.PI;
     videoPanel.add(posSound);
@@ -760,7 +759,6 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
     const posSound = new THREE.PositionalAudio(listener);
     posSound.setRefDistance(50);
     posSound.setRolloffFactor(1.5);
-    posSound.setDistanceModel('exponential');
     posSound.setDirectionalCone(120, 230, 0.2);
     posSound.rotation.y = Math.PI;
     mesh.add(posSound);
