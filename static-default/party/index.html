@@ -577,7 +577,7 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
     const posSound = new THREE.PositionalAudio(listener);
     posSound.setRefDistance(posAudioParams.refDistance);
     posSound.setRolloffFactor(posAudioParams.rolloffFactor);
-    posSound.setDirectionalCone(120, 230, 0.2);
+    posSound.setDirectionalCone(120, 230, 0.6);
     posSound.rotation.y = Math.PI;
     videoPanel.add(posSound);
 
