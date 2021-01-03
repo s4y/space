@@ -51,6 +51,10 @@ func MakeGuest(ctx context.Context, conn *websocket.Conn) *Guest {
 
 	go func() {
 		for msg := range guest.write {
+			if f, ok := msg.(func()); ok {
+				f()
+				return
+			}
 			conn.WriteJSON(msg)
 		}
 	}()
@@ -83,6 +87,15 @@ func (g *Guest) Write(msg interface{}) error {
 		g.cancel()
 		return errors.New(fmt.Sprint("full WebSocket, dropping connection."))
 	}
+}
+
+func (g *Guest) Kick(kind string) {
+	g.Write(MakeClientMessage("kick", struct {
+		Kind string `json:"kind"`
+	}{kind}))
+	g.Write(func() {
+		g.cancel()
+	})
 }
 
 type WorldEventType int

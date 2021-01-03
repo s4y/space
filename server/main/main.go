@@ -110,6 +110,20 @@ func startManagementServer(managementAddr string) {
 				globalKnobs.Set(knob.Name, knob.Value)
 			case "broadcast":
 				defaultWorld.BroadcastFrom(0, msg.Body)
+			case "kick":
+				var kickMsg struct {
+					GuestId uint32 `json:"id"`
+					Kind    string `json:"kind"`
+				}
+				if err := json.Unmarshal(msg.Body, &kickMsg); err != nil {
+					fmt.Println(err)
+					break
+				}
+				guest, ok := defaultWorld.GetGuests()[kickMsg.GuestId]
+				if !ok {
+					break
+				}
+				guest.Kick(kickMsg.Kind)
 			default:
 				fmt.Println("unknown message:", msg)
 			}

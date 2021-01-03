@@ -132,6 +132,10 @@ const sendKnob = (name, value) => {
   localStorage.knobs = JSON.stringify(knobs.knobs);
 };
 
+const kick = (id, kind = "") => {
+  conn && conn.send('kick', { id, kind });
+};
+
 knobs.onchange = sendKnob;
 
 try {
@@ -157,6 +161,16 @@ class GuestView {
     this.idEl.textContent = id;
     this.idEl.classList.add('guestId');
     this.el.appendChild(this.idEl);
+
+    this.kickEl = document.createElement('button');
+    this.kickEl.textContent = 'kick';
+    this.kickEl.addEventListener('click', () => kick(id));
+    this.el.appendChild(this.kickEl);
+
+    this.softBanEl = document.createElement('button');
+    this.softBanEl.textContent = 'soft ban';
+    this.softBanEl.addEventListener('click', () => kick(id, 'softBan'));
+    this.el.appendChild(this.softBanEl);
 
     this.ipAddrEl = document.createElement('div');
     this.ipAddrEl.classList.add('ip');

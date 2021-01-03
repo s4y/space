@@ -159,6 +159,12 @@ class Room {
     ws.observe('mapTrack', body => {
       this.mapTrack(body);
     });
+    ws.observe('kick', body => {
+      delete sessionStorage.inParty;
+      if (body.kind && body.kind == 'softBan')
+        sessionStorage.softBanned = true;
+      window.top.location.reload();
+    });
   }
   getOrCreateGuest(id) {
     return this.guests[id] || (this.guests[id] = {
