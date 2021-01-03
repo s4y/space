@@ -158,11 +158,22 @@ class GuestView {
     this.idEl.classList.add('guestId');
     this.el.appendChild(this.idEl);
 
+    this.ipAddrEl = document.createElement('div');
+    this.ipAddrEl.classList.add('ip');
+    this.ipAddrEl.appendChild(this.ipAddrNode = document.createTextNode(''));
+    this.ipAddrEl.appendChild(this.ipNamesNode = document.createTextNode(''));
+    this.el.appendChild(this.ipAddrEl);
+
     this.fpsEl = document.createElement('div');
     this.fpsEl.classList.add('fps');
     this.el.appendChild(this.fpsEl);
   }
   updateDebug(debug) {
+    if (debug.ip)
+      this.ipAddrNode.nodeValue = debug.ip;
+    if (debug.ip_names)
+      this.ipNamesNode.nodeValue = ` (${debug.ip_names.join(', ')})`;
+
     if (debug.fps) {
       this.fpsEl.textContent = debug.fps.toFixed(0);
       this.fpsEl.classList.remove('unfresh');

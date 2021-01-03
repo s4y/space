@@ -26,7 +26,8 @@ type GuestPublic struct {
 
 type Guest struct {
 	Public    GuestPublic
-	debugInfo sync.Map
+	IPAddr    string
+	DebugInfo sync.Map
 	read      chan interface{}
 	write     chan interface{}
 	ctx       context.Context
@@ -140,8 +141,22 @@ func (w *World) join(seq uint32, g *Guest) {
 	}
 }
 
+func (w *World) sendDebug(seq uint32, o func(uint32, string, interface{})) {
+	g := w.Guests[seq]
+	g.DebugInfo.Range(func(key, value interface{}) bool {
+		o(seq, key.(string), value)
+		return true
+	})
+}
+
 func (w *World) Observe(ctx context.Context, e WorldEventType, cb interface{}) {
 	w.observers.Add(ctx, e, cb)
+	switch e {
+	case WorldEventGuestDebug:
+		for seq := range w.GetGuests() {
+			w.sendDebug(seq, cb.(func(uint32, string, interface{})))
+		}
+	}
 }
 
 func (w *World) GetGuests() map[uint32]*Guest {
@@ -170,6 +185,9 @@ func (w *World) AddGuest(ctx context.Context, g *Guest) uint32 {
 	}()
 	for _, o := range w.observers.Get(WorldEventGuestJoined) {
 		o.(func(uint32, *Guest))(seq, g)
+	}
+	for _, o := range w.observers.Get(WorldEventGuestDebug) {
+		w.sendDebug(seq, o.(func(uint32, string, interface{})))
 	}
 	return seq
 }
@@ -200,7 +218,7 @@ func (w *World) SetGuestDebug(seq uint32, key string, value interface{}) {
 	w.mutex.Lock()
 	g := w.Guests[seq]
 	defer w.mutex.Unlock()
-	g.debugInfo.Store(key, value)
+	g.DebugInfo.Store(key, value)
 	for _, o := range w.observers.Get(WorldEventGuestDebug) {
 		o.(func(uint32, string, interface{}))(seq, key, value)
 	}

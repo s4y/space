@@ -18,6 +18,13 @@ html {
   border-bottom: none;
 }
 
+#guests div {
+  background: #eee;
+  padding: 0.15em 0.5em;
+  margin-right: 0.5em;
+  border-radius: 0.25em;
+}
+
 #guests .guestId {
   background: #88f;
   color: white;

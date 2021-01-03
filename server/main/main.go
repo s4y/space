@@ -70,6 +70,9 @@ func startManagementServer(managementAddr string) {
 		defaultWorld.Observe(ctx, world.WorldEventGuestUpdated, func(seq uint32, g *world.Guest) {
 			ch <- world.MakeGuestUpdateMessage(seq, g)
 		})
+		for seq, g := range defaultWorld.GetGuests() {
+			ch <- world.MakeGuestUpdateMessage(seq, g)
+		}
 		defaultWorld.Observe(ctx, world.WorldEventGuestDebug, func(seq uint32, k string, v interface{}) {
 			ch <- world.MakeClientMessage(
 				"guestDebug",
@@ -93,9 +96,6 @@ func startManagementServer(managementAddr string) {
 					Value: value,
 				})
 		})
-		for seq, g := range defaultWorld.GetGuests() {
-			ch <- world.MakeGuestUpdateMessage(seq, g)
-		}
 		var msg world.ClientMessage
 		for {
 			if err = conn.ReadJSON(&msg); err != nil {
@@ -123,6 +123,7 @@ func main() {
 	staticDir := flag.String("static", "../static-default", "Directory for static content")
 	httpAddr := flag.String("http", "127.0.0.1:8031", "Listening address")
 	production := flag.Bool("p", false, "Production (disables automatic hot reloading)")
+	trustXRealIP := flag.Bool("trust-x-real-ip", false, "Trust the X-Real-IP header, if provided; useful for reverse proxies")
 	managementAddr := flag.String("management", "127.0.0.1:8034", "Listening address for admin pages")
 	flag.Parse()
 	fmt.Printf("http://%s/\n", *httpAddr)
@@ -151,7 +152,24 @@ func main() {
 			return
 		}
 
+		ip := ""
 		guest := world.MakeGuest(ctx, conn)
+		if *trustXRealIP == true {
+			ip = r.Header.Get("X-Real-IP")
+		} else {
+			ip, _, _ = net.SplitHostPort(r.RemoteAddr)
+		}
+		if ip != "" {
+			guest.DebugInfo.Store("ip", ip)
+			go (func() {
+				names, err := net.LookupAddr(ip)
+				if err != nil {
+					fmt.Println("LookupAddr err", err)
+					return
+				}
+				guest.DebugInfo.Store("ip_names", names)
+			})()
+		}
 		var msg world.ClientMessage
 		var seq uint32
 
