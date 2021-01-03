@@ -14,19 +14,21 @@ const userMedia = {
   pendingConstraints: { ...defaultConstraints },
   videoMuted: sessionStorage.videoMuted == 'true',
   audioMuted: sessionStorage.audioMuted == 'true',
+  requiredVideoMute: false,
+  requiredAudioMute: false,
   stream: new MediaStream(),
   devices: null,
   observers: new Observers(),
   async restart() {
     const newConstraints = {};
-    if (this.audioMuted) {
+    if (this.audioMuted || this.requiredAudioMute) {
       this.setTrack(null, 'audio');
       if (this.activeConstraints)
         delete this.activeConstraints.audio;
     } else if (this.pendingConstraints.audio != (this.activeConstraints && this.activeConstraints.audio)) {
       newConstraints.audio = this.pendingConstraints.audio;
     }
-    if (this.videoMuted) {
+    if (this.videoMuted || this.requiredVideoMute) {
       this.setTrack(null, 'video');
       if (this.activeConstraints)
         delete this.activeConstraints.video;
@@ -94,7 +96,22 @@ class UserMediaClient {
     }
     return userMedia.observers.add(key, this.context, cb);
   }
-  toggleVideoMuted() {
+  debugRestart() {
+    userMedia.restart();
+  }
+  setRequiredVideoMute(on) {
+    if (on == userMedia.requiredVideoMute)
+      return;
+    userMedia.requiredVideoMute = on;
+    userMedia.restart();
+  }
+  setRequiredAudioMute(on) {
+    if (on == userMedia.requiredAudioMute)
+      return;
+    userMedia.requiredAudioMute = on;
+    userMedia.restart();
+   }
+   toggleVideoMuted() {
     sessionStorage.videoMuted = userMedia.videoMuted = !userMedia.videoMuted;
     userMedia.restart();
     userMedia.observers.fire('videoMuted', userMedia.videoMuted);

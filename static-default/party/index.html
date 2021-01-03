@@ -999,6 +999,20 @@ const start = () => {
         Service.get('userMedia', um => {
           userMedia = um;
           userMedia.start();
+
+          // services are so bad right now please restore my sanity
+          Service.get('knobs', knobs => {
+            knobs.observe('perf.tickleUserMedia', on => {
+              um.debugRestart();
+            }, false);
+            knobs.observe('perf.requiredVideoMute', on => {
+              document.getElementById('glPlayerView').style.display = on ? 'none' : '';
+              um.setRequiredVideoMute(on);
+            }, false);
+            knobs.observe('perf.requiredAudioMute', on => {
+              um.setRequiredAudioMute(on);
+            }, false);
+          });
         });
 
         window.top.addEventListener('keydown', e => {
