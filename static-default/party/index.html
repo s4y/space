@@ -312,7 +312,6 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
   const renderer = new THREE.WebGLRenderer({
     canvas,
     alpha: false,
-    antialias: true,
     powerPreference: 'high-performance',
   });
   renderer.setClearColor(new THREE.Color().setHSL(0.5, 0.7, 0.01), 1);
@@ -363,7 +362,6 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
     playerRenderer = new THREE.WebGLRenderer({
       canvas: playerCanvas,
       alpha: true,
-      antialias: false,
       powerPreference: 'high-performance',
     });
     playerRenderer.setClearColor(renderer.clearColor);
