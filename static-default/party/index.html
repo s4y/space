@@ -870,14 +870,14 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
 
   Service.get('knobs', knobs => {
     knobs.observe('posAudio.refDistance', refDistance => {
-      posAudioParams.refDistance = refDistance;
+      posAudioParams.refDistance = refDistance * 50;
       for (const k in guests)
-        guests[k].posSound.setRefDistance(refDistance * 50);
+        if (guests[k].posSound) guests[k].posSound.setRefDistance(posAudioParams.refDistance);
     }, 1);
     knobs.observe('posAudio.rolloffFactor', rolloffFactor => {
-      posAudioParams.rolloffFactor = rolloffFactor;
+      posAudioParams.rolloffFactor = rolloffFactor * 10;
       for (const k in guests)
-        guests[k].posSound.setRolloffFactor(rolloffFactor * 10);
+        if (guests[k].posSound) guests[k].posSound.setRolloffFactor(posAudioParams.rolloffFactor);
     }, 1);
   });
 
