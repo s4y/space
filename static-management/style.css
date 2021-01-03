@@ -2,6 +2,16 @@ html {
   font: 14px system-ui;
 }
 
+#knobsEl {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 2em 0;
+}
+
+#knobsEl > li {
+  width: 30em;
+}
+
 #guests {
   list-style: none;
   padding: 0;
