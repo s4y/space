@@ -157,6 +157,8 @@ class Room {
       this.handleRTC(body.from, body.message);
     });
     ws.observe('mapTrack', body => {
+      if (!this.rtcPeer)
+        this.connectRTC()
       this.mapTrack(body);
     });
     ws.observe('kick', body => {
