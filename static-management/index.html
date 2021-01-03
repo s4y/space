@@ -94,7 +94,10 @@ const knobs = window.knobs = new Knobs({
 let conn;
 let midiController;
 
+let knobEls = {};
+
 for (const knob in knobs.config) {
+  const config = knobs.config[knob];
   const knobEl = knobTemplate.content.cloneNode(true);
   const mapButton = knobEl.querySelector('[data-key=map]');
   const inputEl = knobEl.querySelector('[data-key=input]');
@@ -102,7 +105,7 @@ for (const knob in knobs.config) {
   const valueEl = knobEl.querySelector('[data-key=value]');
 
   mapButton.addEventListener('click', e => {
-    midiController.map(knobs.get(knob) / knobs.config[knob].max, v => {
+    midiController.map(knobs.get(knob) / config.max, v => {
       const newValue = v * knobs.config[knob].max;
       knobs.set(knob, newValue);
       inputEl.valueAsNumber = v;
@@ -111,10 +114,21 @@ for (const knob in knobs.config) {
   });
   labelEl.textContent = knob;
   knobsEl.appendChild(knobEl);
+
+  if (config.min)
+    inputEl.min = config.min;
+  if (config.max)
+    inputEl.max = config.max;
+  inputEl.addEventListener('input', e => {
+    knobs.set(knob, inputEl.valueAsNumber);
+  });
+
+  knobEls[knob] = { knobEl, inputEl, };
 }
 
 const sendKnob = (name, value) => {
   conn && conn.send('setKnob', { name, value });
+  knobEls[name] && (knobEls[name].inputEl.valueAsNumber = value);
   localStorage.knobs = JSON.stringify(knobs.knobs);
 };
 
@@ -196,6 +210,11 @@ const connectWs = () => {
           delete guests[id];
         }
         }
+        break;
+      case "knob":
+        knobs.knobs[body.name] = body.value;
+        if (knobEls[body.name])
+          knobEls[body.name].inputEl.valueAsNumber = body.value;
         break;
       default:
         console.log('message', type, body);
