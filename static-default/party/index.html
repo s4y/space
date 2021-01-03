@@ -879,6 +879,7 @@ const buildGlRoom = (canvas, playerCanvas, config) => {
       for (const k in guests)
         if (guests[k].posSound) guests[k].posSound.setRolloffFactor(posAudioParams.rolloffFactor);
     }, 1);
+    worldGlobals.knobs = knobs.knobs;
   });
 
   resize();
