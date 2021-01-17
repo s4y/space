@@ -14,6 +14,10 @@ Prerequisites: [go](https://golang.org).
 2. `$ make run`
 3. Visit: http://127.0.0.1:8031
 
+## Deploying
+
+See the [Wiki](https://github.com/s4y/space/wiki/Hosting-a-space).
+
 ## Inspiration
 
 - [YORB 2020](https://yorb.itp.io/)
