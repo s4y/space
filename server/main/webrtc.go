@@ -33,7 +33,7 @@ type WebRTCPartyLinePeer struct {
 	ctx              context.Context
 	tasks            chan func()
 	peerConnection   *webrtc.PeerConnection
-	tracks           []*webrtc.Track
+	tracks           []webrtc.TrackLocal
 	pendingMids      []func()
 	makingOffer      bool
 	sendAnotherOffer bool
@@ -51,15 +51,58 @@ func NewWebRTCPartyLine(configIn json.RawMessage) *WebRTCPartyLine {
 	}
 
 	mediaEngine := webrtc.MediaEngine{}
-	// mediaEngine.RegisterDefaultCodecs()
-	mediaEngine.RegisterCodec(webrtc.NewRTPOpusCodec(webrtc.DefaultPayloadTypeOpus, 48000))
-	// mediaEngine.RegisterCodec(webrtc.NewRTPPCMUCodec(webrtc.DefaultPayloadTypePCMU, 8000))
-	// mediaEngine.RegisterCodec(webrtc.NewRTPPCMACodec(webrtc.DefaultPayloadTypePCMA, 8000))
-	// mediaEngine.RegisterCodec(webrtc.NewRTPG722Codec(webrtc.DefaultPayloadTypeG722, 8000))
-	mediaEngine.RegisterCodec(webrtc.NewRTPVP8Codec(webrtc.DefaultPayloadTypeVP8, 90000))
-	// mediaEngine.RegisterCodec(webrtc.NewRTPH264Codec(webrtc.DefaultPayloadTypeH264, 90000))
+	if err := mediaEngine.RegisterCodec(webrtc.RTPCodecParameters{
+		RTPCodecCapability: webrtc.RTPCodecCapability{
+			MimeType:    "audio/opus",
+			ClockRate:   48000,
+			Channels:    2,
+			SDPFmtpLine: "minptime=10;useinbandfec=1",
+		},
+		PayloadType: 111,
+	}, webrtc.RTPCodecTypeAudio); err != nil {
+		panic(err)
+	}
+	for _, extension := range []string{
+		"urn:ietf:params:rtp-hdrext:sdes:mid",
+		"urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id",
+		"urn:ietf:params:rtp-hdrext:sdes:repaired-rtp-stream-id",
+	} {
+		if err := mediaEngine.RegisterHeaderExtension(webrtc.RTPHeaderExtensionCapability{
+			URI: extension,
+		}, webrtc.RTPCodecTypeAudio); err != nil {
+			panic(err)
+		}
+	}
 
-	api := webrtc.NewAPI(webrtc.WithMediaEngine(mediaEngine))
+	videoRTCPFeedback := []webrtc.RTCPFeedback{
+		{Type: "goog-remb"},
+		{Type: "ccm", Parameter: "fir"},
+		{Type: "nack"},
+		{Type: "nack", Parameter: "pli"},
+	}
+	if err := mediaEngine.RegisterCodec(webrtc.RTPCodecParameters{
+		RTPCodecCapability: webrtc.RTPCodecCapability{
+			MimeType:     "video/VP8",
+			ClockRate:    90000,
+			Channels:     0,
+			SDPFmtpLine:  "",
+			RTCPFeedback: videoRTCPFeedback,
+		},
+		PayloadType: 96,
+	}, webrtc.RTPCodecTypeVideo); err != nil {
+		panic(err)
+	}
+	for _, extension := range []string{
+		"urn:ietf:params:rtp-hdrext:sdes:mid",
+		"urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id",
+		"urn:ietf:params:rtp-hdrext:sdes:repaired-rtp-stream-id",
+	} {
+		if err := mediaEngine.RegisterHeaderExtension(webrtc.RTPHeaderExtensionCapability{URI: extension}, webrtc.RTPCodecTypeVideo); err != nil {
+			panic(err)
+		}
+	}
+
+	api := webrtc.NewAPI(webrtc.WithMediaEngine(&mediaEngine))
 	return &WebRTCPartyLine{
 		api:    api,
 		config: config,
@@ -116,9 +159,9 @@ func (pl *WebRTCPartyLine) AddPeer(ctx context.Context, p *WebRTCPartyLinePeer) 
 		}
 	})
 
-	p.peerConnection.OnTrack(func(track *webrtc.Track, receiver *webrtc.RTPReceiver) {
+	p.peerConnection.OnTrack(func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
 		p.tasks <- func() {
-			localTrack, err := p.peerConnection.NewTrack(track.PayloadType(), track.SSRC(), track.ID(), track.Label())
+			localTrack, err := webrtc.NewTrackLocalStaticRTP(track.Codec().RTPCodecCapability, track.ID(), track.StreamID())
 			if err != nil {
 				fmt.Println("OnTrack err ", err)
 				return
@@ -141,13 +184,14 @@ func (pl *WebRTCPartyLine) AddPeer(ctx context.Context, p *WebRTCPartyLinePeer) 
 			}()
 
 			go func() {
+				ssrc := uint32(track.SSRC())
 				packets := []rtcp.Packet{
 					&rtcp.ReceiverEstimatedMaximumBitrate{
-						SenderSSRC: track.SSRC(),
+						SenderSSRC: ssrc,
 						Bitrate:    p.MaxBandwidth,
-						SSRCs:      []uint32{track.SSRC()},
+						SSRCs:      []uint32{ssrc},
 					},
-					&rtcp.PictureLossIndication{MediaSSRC: track.SSRC()},
+					&rtcp.PictureLossIndication{MediaSSRC: ssrc},
 				}
 				for range pliChan {
 					if rtcpSendErr := p.peerConnection.WriteRTCP(packets); rtcpSendErr != nil {
@@ -159,7 +203,7 @@ func (pl *WebRTCPartyLine) AddPeer(ctx context.Context, p *WebRTCPartyLinePeer) 
 			go func() {
 				rtpBuf := make([]byte, 1400)
 				for {
-					i, readErr := track.Read(rtpBuf)
+					i, _, readErr := track.Read(rtpBuf)
 					if readErr == io.EOF {
 						return
 					}
@@ -169,7 +213,7 @@ func (pl *WebRTCPartyLine) AddPeer(ctx context.Context, p *WebRTCPartyLinePeer) 
 					}
 
 					// ErrClosedPipe means we don't have any subscribers, this is ok if no peers have connected yet
-					if _, err = localTrack.Write(rtpBuf[:i]); err != nil && err != io.ErrClosedPipe {
+					if _, err = localTrack.Write(rtpBuf[:i]); err != nil {
 						fmt.Println("write error, ignoring:", err)
 					}
 				}
@@ -229,7 +273,7 @@ func (pl *WebRTCPartyLine) AddPeer(ctx context.Context, p *WebRTCPartyLinePeer) 
 				continue
 			}
 			peer.tasks <- func() {
-				tracks := append([]*webrtc.Track(nil), peer.tracks...)
+				tracks := append([]webrtc.TrackLocal(nil), peer.tracks...)
 				p.tasks <- func() {
 					for _, track := range tracks {
 						if err := p.addTrack(peer, track); err != nil {
@@ -263,6 +307,7 @@ func (p *WebRTCPartyLinePeer) sendOffer(restartIce bool) error {
 		p.sendAnotherOffer = true
 		return nil
 	}
+	p.sendAnotherOffer = false
 	p.makingOffer = true
 	var opts *webrtc.OfferOptions
 	if restartIce {
@@ -284,7 +329,8 @@ func (p *WebRTCPartyLinePeer) sendOffer(restartIce bool) error {
 	return nil
 }
 
-func (p *WebRTCPartyLinePeer) addTrack(peer *WebRTCPartyLinePeer, track *webrtc.Track) error {
+func (p *WebRTCPartyLinePeer) addTrack(peer *WebRTCPartyLinePeer, track webrtc.TrackLocal) error {
+
 	transceiver, err := p.peerConnection.AddTransceiverFromTrack(track)
 	if err != nil {
 		return err
