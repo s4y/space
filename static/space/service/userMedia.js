@@ -1,8 +1,5 @@
-<!DOCTYPE html>
-<script type=module>
-
-import Service from '../js/Service.js';
-import Observers from '../js/Observers.js';
+import Service from '/space/js/Service.js';
+import Observers from '/space/js/Observers.js';
 
 const defaultConstraints = {
   video: { width: { max: 512 } },
@@ -36,7 +33,8 @@ const userMedia = {
       newConstraints.video = this.pendingConstraints.video;
     }
     if (newConstraints.audio || newConstraints.video) {
-      this.activeConstraints ||= {};
+      if (!this.activeConstraints)
+        this.activeConstraints = {};
       Object.assign(this.activeConstraints, newConstraints);
       const stream = await navigator.mediaDevices.getUserMedia(newConstraints);
       for (const track of stream.getTracks())
@@ -72,12 +70,9 @@ const userMedia = {
   },
 }
 
-class UserMediaClient {
+export default class UserMediaClient {
   get defaultConstraints() {
     return defaultConstraints;
-  }
-  constructor(context) {
-    this.context = context;
   }
   start() {
     userMedia.start();
@@ -94,7 +89,7 @@ class UserMediaClient {
       if (userMedia.devices)
         cb(userMedia.devices);
     }
-    return userMedia.observers.add(key, this.context, cb);
+    return userMedia.observers.add(key, window, cb);
   }
   debugRestart() {
     userMedia.restart();
@@ -127,7 +122,3 @@ class UserMediaClient {
       userMedia.restart();
   }
 }
-
-Service.register('userMedia', window => new UserMediaClient(window));
-
-</script>

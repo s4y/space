@@ -1,8 +1,5 @@
-<!DOCTYPE html>
-<script type=module>
-
-import Service from '../js/Service.js';
-import Observers from '../js/Observers.js';
+import Service from '/space/js/Service.js';
+import Observers from '/space/js/Observers.js';
 
 const ws = {
   open: false,
@@ -52,15 +49,12 @@ Service.get('docent', docent => {
   })
 });
 
-class WsClient {
-  constructor(context) {
-    this.context = context;
-  }
+export default class WsClient {
   get open() { return ws.open; }
   observe(key, cb) {
     if (key == 'open' && ws.open)
       cb();
-    return ws.observers.add(key, this.context, cb);
+    return ws.observers.add(key, window, cb);
   }
   send(message) {
     return ws.send(message);
@@ -69,7 +63,3 @@ class WsClient {
       ws.open && ws.connect();
   }
 }
-
-Service.register('ws', context => new WsClient(context));
-
-</script>

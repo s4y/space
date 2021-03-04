@@ -1,8 +1,5 @@
-<!DOCTYPE html>
-<script type=module>
-
-import Service from '../js/Service.js';
-import Observers from '../js/Observers.js';
+import Service from '/space/js/Service.js';
+import Observers from '/space/js/Observers.js';
 
 const knobs = {
   state: {},
@@ -31,7 +28,7 @@ const knobs = {
   },
 }
 
-class KnobsClient {
+export default class KnobsClient {
   constructor(context) {
     this.context = context;
   }
@@ -48,7 +45,3 @@ class KnobsClient {
 }
 
 Service.get('ws', ws => knobs.setWs(ws));
-
-Service.register('knobs', context => new KnobsClient(context));
-
-</script>

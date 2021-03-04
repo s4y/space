@@ -1,7 +1,4 @@
-<!DOCTYPE html>
-<script type=module>
-
-import Service from '../js/Service.js';
+import Service from '/space/js/Service.js';
 
 const gestureWrangler = {
   waitingForGesture: [],
@@ -64,6 +61,18 @@ const gestureWrangler = {
   },
 };
 
-Service.register('gestureWrangler', context => gestureWrangler);
+window.addEventListener('touchstart', () => {
+  gestureWrangler.onGesture();
+}, { once: true });
 
-</script>
+window.addEventListener('mousedown', () => {
+  gestureWrangler.onGesture();
+}, { once: true });
+
+window.addEventListener('keydown', () => {
+  gestureWrangler.onGesture();
+}, { once: true });
+
+export default function() {
+  return gestureWrangler;
+}

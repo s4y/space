@@ -1,59 +1,24 @@
 <!DOCTYPE html>
 <meta name=viewport content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<style>
+<link rel=stylesheet href="/style.css">
 
-html, body {
-  height: 100%;
-}
-
-body {
-  margin: 0;
-  overflow: hidden;
-}
-
-body > iframe {
-  border: 0;
-  display: block;
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-}
-
-#partyFrame {
-  background: black;
-}
-
-#serviceFrames {
-  display: none;
-}
-
-#needGesture {
-  display: none;
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background: rgba(0, 0, 0, 0.5);
-  font: 2em system-ui, "Helvetica Neue", Helvetica, sans-serif;
-  color: white;
-  z-index: 1;
-}
-
-</style>
-<body>
-<div id=serviceFrames></div>
-<div id=needGesture style="display: none">Click/touch anywhere.</div>
+<canvas id=glRoom></canvas>
+<canvas id=glPlayerView></canvas>
+<div id=chat>
+  <ul data-click-through></ul>
+  <form id=chatForm><input name=message autocomplete=off></form>
+  <div id=touchmove style="display: none">Drag here to move.<br>Drag anywhere else to look around.</div>
+</div>
 <script type=module>
 
-import Service from '/space/js/Service.js';
+import * as THREE from '/deps/three/build/three.module.js'
+import { GLTFLoader } from '/deps/three/examples/jsm/loaders/GLTFLoader.js'
+import { BufferGeometryUtils } from '/deps/three/examples/jsm/utils/BufferGeometryUtils.js'
+import Service from '/space/js/Service.js'
+import PlayerControls from '/space/js/PlayerControls.js'
+import World from '/space/js/World.js'
 
-Service.setHost(serviceFrames);
+Service.get('docent', docent => {});
 
 const hqs = location.hash
   .substr(1)
@@ -62,83 +27,880 @@ const hqs = location.hash
   .map(c => c.split('=').map(decodeURIComponent))
   .reduce((params, [k, v]) => (params[k] = v, params), {});
 
-let gestureWrangler;
-Service.get('gestureWrangler', w => {
-  gestureWrangler = w;
-  w.setPromptEl(needGesture, needGesture);
-});
+const createStatsTracker = () => {
+  let ws;
+  Service.get('ws', x => ws = x);
+  return {
+    fpsHistory: [],
+    frames: null,
+    startTime: null,
+    begin() {
+      if (!this.startTime) {
+        this.startTime = +new Date();
+        this.frames = 0;
+        setTimeout(() => {
+          const delta = +new Date() - this.startTime;
+          const fps = this.frames / (delta / 1000)
+          this.recordFps(fps);
+          try {
+          ws.send({ type: "debug.fps", body: fps });
+          } catch(e) {}
+          this.startTime = null;
+        }, 1000);
+      }
+      this.frames++;
+    },
+    end() {
+    },
+    recordFps(fps) {
+      this.fpsHistory.push(fps);
+      if (this.fpsHistory.length > 10)
+        this.fpsHistory.shift();
+      if (this.fpsHistory.length < 10)
+        return;
+      const sortedFps = this.fpsHistory.slice().sort();
+      const middle = (sortedFps.length + 1) / 2;
+      const median = sortedFps[Math.floor(middle)];
+      if (median < 29) {
+        this.onPerformanceNeeded();
+        this.fpsHistory.length = 5;
+      }
+      if (median > 50) {
+        this.onPerformanceGood();
+        this.fpsHistory.length = 5;
+      }
+    },
+  };
+};
+const stats = createStatsTracker();
 
-Service.get('docent', docent => {});
+// Based on code by Adam Quinn (https://github.com/agquinn01)
+const createSky = () => {
+  const sky = new THREE.Group();
+  for (let i = 0; i < 8; i++) {
+    const opacity = Math.random() * 0.75 + 0.25;
+    const starGeometries = [];
+    for (let j = 0; j < 200; j++){
+      const starGeometry = new THREE.SphereBufferGeometry(Math.random() * 1.5 + 0.5);
+      const angle = Math.random() * Math.PI * 2;
+      const distanceFromCenter = Math.random() * 2000;
+      starGeometry.translate(
+        Math.cos(angle) * distanceFromCenter,
+        Math.random() * 107,
+        Math.sin(angle) * distanceFromCenter,
+      );
+      starGeometries.push(starGeometry);
+    }
 
-const prepSplash = () => {
-  const doc = splashFrame.contentDocument;
+    const starMaterial = new THREE.MeshBasicMaterial( {color: 0xffff00, transparent: true } );
+    const starGroup = new THREE.Mesh(BufferGeometryUtils.mergeBufferGeometries(starGeometries), starMaterial);
 
-  if (sessionStorage.softBanned)
-    return;
+    starGroup.onBeforeRender = () => {
+      starMaterial.opacity = (opacity + motion * (Math.sin(performance.now() / 1000 + i / 2.) * 0.5));
+    };
 
-  const connDetails = doc.getElementById('conndetails');
-  const goLink = doc.createElement('a');
-  goLink.style.fontSize = '1.2em';
-  goLink.style.fontWeight = 'bold';
-  goLink.href = '';
-  goLink.textContent = 'Click here to join.';
-  connDetails.innerHTML = '';
-  connDetails.appendChild(goLink);
-
-  splashFrame.offsetWidth;
-  splashFrame.style.opacity = '1';
-  splashFrame.style.background = 'white';
-  splashFrame.style.backdropFilter = 'blur(20px)';
-
-  doc.body.style.background = 'white';
-  doc.documentElement.style.background = 'rgba(255, 255, 255, 0.05)';
-
-  goLink.addEventListener('click', e => {
-    e.preventDefault();
-    sessionStorage.inParty = true;
-
-    window.waitForGesture = false;
-    partyFrame.contentWindow.startOnGesture().then(() => {
-      partyFrame.style.visibility = '';
-      splashFrame.style.pointerEvents = 'none';
-      splashFrame.blur();
-
-      setTimeout(() => {
-        splashFrame.style.transition = 'background 4s ease-in, backdrop-filter 4s ease-in, opacity 1s ease-in';
-        splashFrame.style.background = 'transparent';
-        splashFrame.style.backdropFilter = '';
-      }, 100);
-
-      setTimeout(() => {
-        splashFrame.style.opacity = '0';
-      }, 3500);
-
-      setTimeout(() => {
-        splashFrame.parentNode.removeChild(splashFrame);
-      }, 5000);
-    });
-
-    gestureWrangler.onGesture();
-  }); 
+    sky.add(starGroup);
+  }
+  sky.position.y = 500;
+  return sky;
 };
 
-const partyFrame = document.createElement('iframe');
-partyFrame.id = 'partyFrame';
-partyFrame.src = 'party/';
+const buildGlRoom = (canvas, services, playerCanvas, config) => {
+  const scene = new THREE.Scene();
+  const playerScene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(60);
+  camera.far = 10000;
+  camera.rotation.order = 'YXZ';
 
-if (('skipSplash' in hqs) || sessionStorage.inParty) {
-  window.waitForGesture = false;
-  document.body.appendChild(partyFrame);
-} else {
-  window.waitForGesture = true;
-  const splashFrame = document.createElement('iframe');
-  splashFrame.src = 'splash/';
-  splashFrame.id = 'splashFrame';
+  const listener = new THREE.AudioListener();
 
-  partyFrame.style.visibility = 'hidden';
-  document.body.appendChild(partyFrame);
-  document.body.appendChild(splashFrame);
-  splashFrame.addEventListener('load', prepSplash);
+  // Work around for missing echo cancellation on many kinds of audio:
+  // https://crbug.com/687574
+  if (config.seeAndHear !== false && navigator.userAgent.indexOf('Chrome') != -1) {
+    const loopbackDestination = listener.context.createMediaStreamDestination();
+    const loopbackEl = document.createElement('audio');
+    import('/space/js/RTCLoopback.js').then(({ default: RTCLoopback }) => {
+      const loopback = new RTCLoopback(stream => {
+        listener.gain.disconnect(listener.context.destination);
+        listener.gain.connect(loopbackDestination);
+        loopbackEl.srcObject = loopback.outputStream;
+        gestureWrangler.playVideo(loopbackEl);
+      });
+
+      loopback.setInputStream(loopbackDestination.stream);
+    });
+  }
+
+  gestureWrangler.playAudioContext(listener.context);
+  camera.add(listener);
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    alpha: false,
+    powerPreference: 'high-performance',
+  });
+  renderer.setClearColor(new THREE.Color().setHSL(0.5, 0.7, 0.01), 1);
+  renderer.physicallyCorrectLights = true;
+
+  renderer.xr.enabled = true;
+
+  let xrSession = null;
+
+  const startXRSession = async () => {
+    console.log('start start');
+    xrSession = await navigator.xr.requestSession(
+      'immersive-vr', {
+        optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'],
+      });
+    renderer.xr.setSession(xrSession);
+  };
+
+  if (navigator.xr) {
+    navigator.xr.isSessionSupported('immersive-vr').then(supported => {
+      if (!supported)
+        return;
+      window.top.addEventListener('keydown', e => {
+        if (!(e.code == 'KeyV' && e.shiftKey))
+          return;
+        e.preventDefault();
+        if (xrSession) {
+          xrSession.end();
+          xrSession = null;
+        } else {
+          startXRSession();
+        }
+      });
+    });
+  }
+
+
+  const hemiLight = new THREE.HemisphereLight( 0x7FBBFF, 0x34002D, 1 );
+  scene.add(hemiLight);
+  let playerCamera;
+  let playerRenderer;
+  if (config.seeAndHear !== false) {
+    playerCamera = new THREE.PerspectiveCamera(30);
+    playerCamera.rotation.order = 'YXZ';
+    playerCamera.rotation.y = Math.PI;
+    playerCamera.position.z -= 14;
+    playerCamera.position.y -= -6;
+    playerRenderer = new THREE.WebGLRenderer({
+      canvas: playerCanvas,
+      alpha: true,
+      powerPreference: 'high-performance',
+    });
+    playerRenderer.setClearColor(renderer.clearColor);
+  } else {
+    playerCanvas.style.display = 'none';
+  }
+
+  for (const props of [
+    { p: [-10, 1, 0], power: 1000 },
+    { p: [10, 1, 0], power: 1000 },
+    { p: [0, 1, 10], power: 1000 },
+    { p: [0, 1, -10], power: 1000 },
+    { p: [0, 7, 0], power: 2000 },
+  ]) {
+    const light = new THREE.PointLight(0xffffff, 100, 50);
+    light.power = props.power;
+    light.decay = 2;
+    light.position.set(...props.p);
+    scene.add(light);
+  }
+
+  const guests = {};
+
+  let musicGain = listener.context.createGain();
+  musicGain.connect(musicAnalyser);
+
+  let worldGlobals = {
+    config, scene, listener, renderer, services, guests, ac: listener.context, musicGain
+  };
+  let world = new World('/world.js', worldGlobals);
+
+  scene.add(world.group);
+
+  scene.add(createSky());
+
+  const updateBalloons = [];
+  const balloonGeometry = new THREE.IcosahedronBufferGeometry(5, 0);
+  for (let i = 0; i < 10; i++) {
+    const rowLight = new THREE.PointLight(0xffffff, 100, 50);
+    rowLight.power = 2000;
+    rowLight.decay = 2;
+    rowLight.position.y = -10;
+    for (let j = 0; j < 10; j++) {
+      const balloon = new THREE.Mesh(
+        balloonGeometry,
+        new THREE.MeshPhongMaterial({
+          color: 0xffffff,
+          shininess: 20,
+        }));
+      if (j == i)
+        balloon.add(rowLight);
+      updateBalloons.push((now, byteFreqData) => {
+        balloon.position.y = 40 + motion * (Math.sin(now / 10000 + i / 2. + j * 3.) * 10.);
+        balloon.material.emissive.setHSL((i + j) / 40 + now / 16000, 0.5, + (byteFreqData[i*10+j]*musicReactivity) / 255 * 0.8);
+      });
+      balloon.position.z = j * 15 - 150;
+      balloon.position.x = i * 15 - 150;
+      scene.add(balloon);
+    }
+  }
+
+  const floor = new THREE.Mesh(
+    new THREE.CircleBufferGeometry(100000),
+    new THREE.MeshPhongMaterial( {
+      color: 0x222222,
+      emissive: 0x221122,
+      shininess: 20,
+    } ));
+  floor.rotation.x = -Math.PI / 2;
+  floor.rotation.order = 'YXZ';
+  scene.add(floor);
+
+  let downscale = 1;
+  const resize = () => {
+    renderer.setSize(
+      canvas.clientWidth * devicePixelRatio / downscale,
+      canvas.clientHeight * devicePixelRatio / downscale, false);
+    camera.aspect = canvas.width / canvas.height;
+    camera.updateProjectionMatrix();
+
+    playerRenderer.setSize(
+      playerCanvas.clientWidth * devicePixelRatio,
+      playerCanvas.clientHeight * devicePixelRatio, false);
+    playerCamera.aspect = playerCanvas.width / playerCanvas.height;
+    playerCamera.updateProjectionMatrix();
+  };
+  window.addEventListener('resize', resize);
+
+  stats.onPerformanceNeeded = () => {
+    if (downscale < 3) {
+      downscale++;
+      resize();
+    }
+  };
+
+  stats.onPerformanceGood = () => {
+    if (downscale > 1) {
+      downscale--;
+      resize();
+    }
+  }
+
+  const headMaterial = new THREE.ShaderMaterial( {
+    transparent: true,
+    clipping: true,
+    side: THREE.DoubleSide,
+    uniforms: {
+      t: { value: 0 },
+      map: { type: 't', value: null },
+      aspect: { value: 1 },
+    },
+    vertexShader: `
+      #include <common>
+      #include <uv_pars_vertex>
+      #include <uv2_pars_vertex>
+      #include <clipping_planes_pars_vertex>
+
+      varying vec2 p;
+      // varying vec3 norm;
+
+      void main() {
+        #include <begin_vertex>
+        #include <project_vertex>
+        #include <clipping_planes_vertex>
+        p = uv*2.-1.;
+        // norm = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+      }
+    `,
+
+    fragmentShader: `
+      #include <common>
+      #include <clipping_planes_pars_fragment>
+
+      varying vec2 p;
+      // varying vec3 norm;
+      uniform sampler2D map;
+      uniform float t;
+      uniform float aspect;
+      void main() {
+        #include <clipping_planes_fragment>
+        vec2 uv = p * 1.;
+        uv.x /= aspect;
+        uv *= cos(uv * PI / 8.) * 1.;
+        uv = uv/2.+.5;
+        gl_FragColor = texture2D(map, uv);
+
+        float bri = 1. - pow(distance(p, vec2(0.0)) * 1.2 - 0.1 - sin(p.x * (p.y+0.5) * 2. + t) * 0.1, 9.);
+        gl_FragColor *= 1.0-step(bri, 0.5);
+        gl_FragColor.rgb *= bri;
+      }
+    `,
+  } );
+
+  const posAudioParams = {
+    refDistance: 0,
+    rolloffFactor: 0,
+  };
+
+  const getOrCreateGuest = (id, remoteGuest) => {
+    let guest = guests[id];
+    if (guest)
+      return guest;
+
+    if (remoteGuest.state.role in specialGuestRoles)
+      return guests[id] = specialGuestRoles[remoteGuest.state.role](id, remoteGuest);
+
+    const geometry = new THREE.BoxBufferGeometry(2.5, 2.5, 2.5);
+    const material = new THREE.MeshPhongMaterial( { color: 0xaaaaaa, emissive: 0x777700 } );
+    const cube = new THREE.Mesh( geometry, material );
+
+    const videoPanel = new THREE.Mesh(
+      new THREE.CylinderBufferGeometry(3.5, 3.5, 5, 64, 1, true, Math.PI*0.25 * 3., Math.PI/2.).scale(1, 1, 0.5).translate(0, 0, -0.4),
+      headMaterial.clone(),
+    );
+    videoPanel.onBeforeRender = () => {
+      videoPanel.material.uniforms.t.value = performance.now() / 1000;
+    };
+
+    const head = new THREE.Group();
+    head.add(cube);
+    head.add(videoPanel);
+    head.position.y = 6.4;
+    head.rotation.order = 'YXZ';
+
+
+    const body = new THREE.Mesh(
+      new THREE.CylinderBufferGeometry(.9, .6, 4, 64),
+      new THREE.MeshPhongMaterial( { color: 0xaaaaaa, emissive: 0x555555 } )
+    );
+    body.position.y = 2;
+
+    const group = new THREE.Group();
+    group.add(head);
+    group.add(body);
+
+    if (id === 'self') {
+      playerScene.add(group);
+      group.add(playerCamera);
+    } else {
+      scene.add(group);
+    }
+
+    const videoEl = document.createElement('video');
+    videoEl.playsInline = true;
+    videoEl.muted = true;
+
+    const posSound = new THREE.PositionalAudio(listener);
+    posSound.setRefDistance(posAudioParams.refDistance);
+    posSound.setRolloffFactor(posAudioParams.rolloffFactor);
+    posSound.setDirectionalCone(120, 230, 0.6);
+    posSound.rotation.y = Math.PI;
+    videoPanel.add(posSound);
+
+
+    const videoTexture = new THREE.VideoTexture(videoEl);
+    videoTexture.minFilter = THREE.LinearFilter;
+    videoTexture.magFilter = THREE.LinearFilter;
+    videoTexture.format = THREE.RGBFormat;
+    videoTexture.offset.set(-0.25, 0);
+    videoPanel.material.uniforms.map.value = videoTexture;
+    videoEl.addEventListener('playing', () => {
+      videoPanel.material.uniforms.aspect.value = videoEl.videoWidth / videoEl.videoHeight;
+      head.add(videoPanel);
+    });
+    videoEl.addEventListener('paused', () => {
+      head.remove(videoPanel);
+    });
+
+    let videoTrack, audioTrack;
+
+    const updateTracks = () => {
+        const tracks = [videoTrack, audioTrack].filter(t => t);
+        const stream = tracks.length ? new MediaStream(tracks) : null;
+        videoEl.srcObject = stream;
+        gestureWrangler.playVideo(videoEl);
+        if (audioTrack) {
+          try {
+            posSound.setMediaStreamSource(stream);
+          } catch (e) {
+            console.log(e);
+            videoEl.muted = false;
+          }
+        } else if (posSound.source) {
+          posSound.disconnect();
+        }
+    };
+
+    const ret = (guests[id] = {
+      group, head, body, posSound,
+      destroy() {
+        videoEl.srcObject = null;
+        try {
+          posSound.getOutput().disconnect();
+          posSound.disconnect();
+        } catch(e){}
+      },
+      set videoTrack(newVideoTrack) {
+        if (newVideoTrack == videoTrack)
+          return;
+        videoTrack = newVideoTrack;
+        updateTracks();
+      },
+      set audioTrack(newAudioTrack) {
+        if (newAudioTrack == audioTrack)
+          return;
+        audioTrack = newAudioTrack;
+        updateTracks();
+      },
+    });
+
+    ret.videoTrack = remoteGuest.videoTrack;
+    ret.audioTrack = remoteGuest.audioTrack;
+    updateTracks();
+
+    if (joinSound) {
+      const joinSource = THREE.AudioContext.getContext().createBufferSource();
+      joinSource.buffer = joinSound;
+      joinSource.connect(posSound.getOutput());
+      setTimeout(() => {
+        joinSource.start();
+      }, 1000);
+    }
+
+    return ret;
+  };
+
+  const specialGuestRoles = {
+    dj: (id, remoteGuest) => {
+      let source;
+
+      return {
+        destroy() {
+          if (source)
+            source.disconnect();
+        },
+        set videoTrack(newVideoTrack) {
+          // console.log('why does the dj have video?');
+        },
+        set audioTrack(newAudioTrack) {
+          if (source)
+            source.disconnect();
+          source = listener.context.createMediaStreamSource(new MediaStream([newAudioTrack]));
+          source.connect(musicGain);
+        },
+      };
+    },
+  };
+
+  let projectorId = null;
+
+  const updateGuest = (id, remoteGuest) => {
+    if (remoteGuest.state.role == 'cast') {
+      projectorId = id;
+      return;
+    }
+    const guest = getOrCreateGuest(id, remoteGuest);
+    if (guest.group) {
+      const { state } = remoteGuest;
+      guest.group.rotation.y = -state.look[0];
+      guest.head.rotation.x = -state.look[1];
+
+      guest.group.position.x = state.position[0];
+      guest.group.position.z = -state.position[1];
+      guest.group.position.y = state.position[2];
+    }
+  }
+
+  const updateMedia = (id, { videoTrack, audioTrack }) => {
+    if (id == projectorId) {
+      projector.setStream(new MediaStream([videoTrack, audioTrack].filter(t => t)));
+      return;
+    }
+    const guest = guests[id];
+    if (!guest) {
+      return;
+    }
+    guest.videoTrack = videoTrack;
+    guest.audioTrack = audioTrack;
+  };
+
+  const removeGuest = id => {
+    const guest = guests[id];
+    if (!guest)
+      return;
+
+    if (partSound && guest.posSound) {
+      const partSource = THREE.AudioContext.getContext().createBufferSource();
+      partSource.buffer = partSound;
+      partSource.connect(guest.posSound.getOutput());
+      partSource.start();
+    }
+
+    if (guest.group)
+      guest.group.parent.remove(guest.group);
+    guest.destroy();
+    delete guests[id];
+  };
+
+  const cubez = [];
+  for (let i = 0; i < 0; i++) {
+    const size = 20 - (i * 0.1);
+    const cube = new THREE.Mesh(
+      new THREE.BoxBufferGeometry(size, 1, size),
+      new THREE.MeshPhongMaterial( {
+        color: 0xaaaaaa,
+        emissive: 0x000000,
+        shininess: 20,
+      } )
+    );
+    cube.position.y = 20;
+    cube.rotation.order = 'YXZ';
+    scene.add(cube);
+    cubez.push(cube);
+  }
+
+  const byteFreqData = new Uint8Array(1024);
+
+  const createProjector = (size) => {
+    const group = new THREE.Group();
+    const mesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(size * (16/9), size));
+    mesh.position.y = size/2;
+    group.add(mesh);
+
+    const light = new THREE.PointLight(0xffffff, 100, size + 30);
+    light.position.z = 30;
+    light.position.y = size/2;
+    group.add(light);
+      
+    const posSound = new THREE.PositionalAudio(listener);
+    posSound.setRefDistance(50);
+    posSound.setRolloffFactor(1.5);
+    posSound.setDirectionalCone(120, 230, 0.2);
+    posSound.rotation.y = Math.PI;
+    mesh.add(posSound);
+
+    const videoEl = document.createElement('video');
+    videoEl.playsInline = true;
+    videoEl.muted = true;
+    posSound.setMediaElementSource(videoEl);
+
+    videoEl.addEventListener('resize', e => {
+      mesh.geometry = new THREE.PlaneBufferGeometry(size * videoEl.videoWidth / videoEl.videoHeight, size);
+      mesh.position.y = size / 2;
+    });
+
+    const videoTexture = new THREE.VideoTexture(videoEl);
+    videoTexture.minFilter = THREE.LinearFilter;
+    videoTexture.magFilter = THREE.LinearFilter;
+    videoTexture.format = THREE.RGBFormat;
+    // videoTexture.offset.set(-0.25, 0);
+    mesh.material = new THREE.MeshBasicMaterial({
+      color:0xffffff,
+      side: THREE.DoubleSide,
+      map: videoTexture,
+    });
+    // videoEl.addEventListener('playing', () => {
+    //   videoPanel.material.uniforms.aspect.value = videoEl.videoWidth / videoEl.videoHeight;
+    //   head.add(videoPanel);
+    // });
+    // videoEl.addEventListener('paused', () => {
+    //   head.remove(videoPanel);
+    // });
+
+    scene.add(group);
+    return {
+      group,
+      setStream: stream => {
+        videoEl.srcObject = stream;
+        gestureWrangler.playVideo(videoEl);
+        if (stream.getAudioTracks().length) {
+          posSound.setMediaStreamSource(stream);
+          posSound.source.connect(musicAnalyser);
+        }
+      }
+    };
+  };
+
+  let projector = createProjector(40);
+  projector.group.position.z = -75;
+  projector.group.position.x = -180;
+  projector.group.rotation.y = Math.PI / 2;
+
+  const draw = ({ now, look, position }) => {
+    camera.position.x = position[0];
+    camera.position.z = -position[1];
+    camera.position.y = 6 + position[2];
+    camera.rotation.y = -look[0];
+    camera.rotation.x = -look[1];
+
+    const vrScale = 0.16;
+    if (renderer.xr.isPresenting) {
+      scene.scale.set(vrScale, vrScale, vrScale);
+      // camera.parent && camera.parent.remove(camera);
+      renderer.xr.getCamera(camera);
+      const v = new THREE.Vector3();
+      const dir = new THREE.Vector3(0, 0, 1);
+      v.applyMatrix4(camera.matrixWorld);
+      dir.applyMatrix4(camera.matrixWorld);
+      dir.normalize();
+      // if (lastCameraPosition) {
+      //   v.x -= lastCameraPosition.x;
+      //   v.z -= lastCameraPosition.z
+      // }
+      // lastCameraPosition = v;
+      // movePlayer(v.x / vrScale, -v.z / vrScale, -dir.x, dir.y - Math.PI/4);
+      // console.log(position, v);
+    }
+
+    if (musicAnalyser)
+      musicAnalyser.getByteFrequencyData(byteFreqData);
+
+    world.update(camera, renderer);
+
+    for (let i = 0; i < cubez.length; i++) {
+      const cube = cubez[i];
+      const seq = (now / 100000) % 16;
+      const florp = seq - (seq % 1) * (1 - Math.pow(seq % 1, 100));
+      const flap = (florp/16) * Math.PI * 2;
+      cube.rotation.z = Math.PI / 4;
+      cube.rotation.x = Math.atan(1/Math.SQRT2) + flap;
+      cube.rotation.y = now / 10000 * (i+1);
+    }
+
+    updateBalloons.forEach(f => f(now, byteFreqData));
+
+    renderer.render(scene, camera);
+
+    if (guests.self) {
+      playerRenderer.render(playerScene, playerCamera);
+    }
+  };
+
+  const clearGuests = () => {
+    for (const k in guests) {
+      removeGuest(k);
+    }
+  };
+
+  Service.get('knobs', knobs => {
+    knobs.observe('posAudio.refDistance', refDistance => {
+      posAudioParams.refDistance = refDistance * 50;
+      for (const k in guests)
+        if (guests[k].posSound) guests[k].posSound.setRefDistance(posAudioParams.refDistance);
+    }, 1);
+    knobs.observe('posAudio.rolloffFactor', rolloffFactor => {
+      posAudioParams.rolloffFactor = rolloffFactor * 10;
+      for (const k in guests)
+        if (guests[k].posSound) guests[k].posSound.setRolloffFactor(posAudioParams.rolloffFactor);
+    }, 1);
+    worldGlobals.knobs = knobs.knobs;
+  });
+
+  resize();
+  return {
+    draw, updateGuest, removeGuest, updateMedia, clearGuests, renderer
+  };
 }
+
+const buildRoom = (el, services, config) => {
+  let player;
+  let controls;
+  const glRoom = buildGlRoom(document.getElementById('glRoom'), services, document.getElementById('glPlayerView'), {
+    roomEl: el,
+    ...config
+  });
+
+  const ret = {
+  };
+
+  let lastLook, lastPosition;
+  const equalVectors = (a, b) => {
+    if (!(a && b))
+      return false;
+    if (a.length != b.length)
+      return false;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] != b[i])
+        return false;
+    }
+    return true;
+  };
+  const draw = rawNow => {
+    stats && stats.begin();
+    const now = rawNow + timeOffset;
+    controls.step();
+    player.stepPhysics();
+    const { position, look } = player;
+    glRoom.draw({ now, position, look });
+    stats && stats.end();
+  };
+
+  Service.get('room', room => {
+    const ac = room.ac;
+    player = room.player;
+
+    controls = new PlayerControls();
+    controls.player = player;
+
+    room.join();
+    room.observe('update', (id, state) => {
+      if (state)
+        glRoom.updateGuest(id, state);
+      else
+        glRoom.removeGuest(id);
+    });
+
+    room.observe('updateMedia', (id, guest) => {
+      glRoom.updateMedia(id, guest);
+    });
+
+    room.observe('clear', () => {
+      glRoom.clearGuests();
+    });
+
+    glRoom.clearGuests();
+    for (const k in room.guests)
+      glRoom.updateGuest(k, room.guests[k]);
+
+    glRoom.renderer.setAnimationLoop(() => {
+      draw(performance.now());
+    });
+
+    fetch('/sounds/join.mp3')
+      .then(r => r.arrayBuffer())
+      .then(ab => ac.decodeAudioData(ab))
+      .then(buf => {
+        joinSound = buf;
+      });
+
+    fetch('/sounds/part.mp3')
+      .then(r => r.arrayBuffer())
+      .then(ab => ac.decodeAudioData(ab))
+      .then(buf => {
+        partSound = buf;
+      });
+
+  });
+
+  return ret;
+}
+
+let gestureWrangler;
+let timeOffset;
+let musicAnalyser;
+let musicReactivity = 0;
+let motion = 0;
+
+let joinSound;
+let partSound;
+
+const start = () => {
+  Service.get('knobs', knobs => {
+    knobs.observe('world.musicReactivity', v => {
+      musicReactivity = v;
+    }, 1);
+    knobs.observe('world.motion', v => {
+      motion = v;
+    }, 1);
+  });
+
+  Service.get('gestureWrangler', gw => {
+    gestureWrangler = gw;
+  });
+
+  return fetch('/config.json')
+    .then(r => r.json())
+    .then(config => {
+      timeOffset = new Date() - config.zeroTime
+
+      if (config.seeAndHear !== false) {
+        let userMedia;
+        Service.get('userMedia', um => {
+          userMedia = um;
+          userMedia.start();
+
+          // services are so bad right now please restore my sanity
+          Service.get('knobs', knobs => {
+            knobs.observe('perf.tickleUserMedia', on => {
+              um.debugRestart();
+            }, false);
+            knobs.observe('perf.requiredVideoMute', on => {
+              document.getElementById('glPlayerView').style.display = on ? 'none' : '';
+              um.setRequiredVideoMute(on);
+            }, false);
+            knobs.observe('perf.requiredAudioMute', on => {
+              um.setRequiredAudioMute(on);
+            }, false);
+          });
+        });
+
+        window.top.addEventListener('keydown', e => {
+          switch (e.keyCode) {
+            case 77: // m
+              userMedia.toggleAudioMuted();
+              break;
+            case 86: // v
+              userMedia.toggleVideoMuted();
+              break;
+            default:
+              return; // without preventing default
+          }
+          e.preventDefault();
+        });
+      }
+
+      let builtRoom = false;
+      Service.get('room', room => {
+        THREE.AudioContext.setContext(room.ac);
+        musicAnalyser = room.ac.createAnalyser();
+        if (!builtRoom) {
+          buildRoom(document.getElementById('room'), { gestureWrangler }, config);
+          builtRoom = true;
+        }
+      });
+    })
+};
+
+if (window.top.waitForGesture === true) {
+  window.startOnGesture = start;
+} else {
+  start();
+}
+
+if (window != window.top) {
+  window.addEventListener('focus', e => {
+    window.top.focus();
+  });
+}
+
+(async () => {
+  const config = await (await fetch('/config.json')).json();
+  if (config.chat === false)
+    return;
+
+  document.body.classList.add('chatEnabled');
+
+  Service.get('chat', chat => {
+    const messages = document.querySelector("#chat > ul");
+    chat.observe('message', ({from, message}) => {
+      const li = document.createElement('li');
+      li.classList.add('message', from === chat.whoami ? 'self' : 'other');
+      li.textContent = message;
+
+      messages.insertBefore(li, messages.firstChild);
+      li.scrollIntoView();
+    });
+
+    chatForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      chat.addMessage(chatForm.message.value);
+
+      chatForm.message.value = '';
+    });
+  });
+})();
 
 </script>

@@ -1,21 +1,18 @@
-<!DOCTYPE html>
-<script type=module>
-
-import Service from '../js/Service.js';
-import Observers from '../js/Observers.js';
-import RTCPeer from '../js/RTCPeer.js'
+import Service from '/space/js/Service.js';
+import Observers from '/space/js/Observers.js';
+import RTCPeer from '/space/js/RTCPeer.js'
 
 class Player {
   constructor(onchange, state = { position: [], look: [], }) {
     this.onchange = onchange;
-    this.position = [Math.random() * 20 - 10, -90 + Math.random() * 10 - 5, 0];
+    this.position = [Math.random() * 20 - 10, Math.random() * 20 - 10, 0];
     this.gravityEnabled = true;
 
     // Gingerly unpack the saved position from sessionStorage. If anything
     // isn't a reasonable value, use the default.
     for (let i = 0; i < this.position.length; i++)
       this.position[i] = state.position[i] || this.position[i];
-    this.look = [0, 0];
+    this.look = [0, -0.1];
     for (let i = 0; i < this.look.length; i++)
       this.look[i] = state.look[i] || this.look[i];
     this.velocity = [0, 0, 0];
@@ -24,6 +21,7 @@ class Player {
     return {
       position: this.position,
       look: this.look,
+      role: this.role || '',
     };
   }
   get look() {
@@ -47,8 +45,8 @@ class Player {
     };
     const { velocity } = this;
     // console.log('apply', acceleration);
-    velocity[0] = apply(velocity[0], acceleration[0] * 0.05);
-    velocity[1] = apply(velocity[1], acceleration[1] * 0.05);
+    velocity[0] = apply(velocity[0], acceleration[0] * 0.01);
+    velocity[1] = apply(velocity[1], acceleration[1] * 0.01);
     velocity[2] = apply(velocity[2], acceleration[2] * 0.01);
   }
   stepPhysics() {
@@ -62,7 +60,7 @@ class Player {
     // velocity[2] *= 0.9;
     position[0] += velocity[0] * delta * scale;
     position[1] += velocity[1] * delta * scale;
-    position[2] += velocity[2] * delta * 0.5;
+    position[2] += velocity[2] * delta * 0.5 * scale;
     let floorHeight = this.floorHeightAt
     ? this.floorHeightAt(position[0], -position[1])
     : 0;
@@ -76,9 +74,17 @@ class Player {
       velocity[0] *= 0.99;
       velocity[1] *= 0.99;
       if (this.gravityEnabled)
-        velocity[2] -= 0.1;
+        velocity[2] -= 0.005;
       else
         velocity[2] *= 0.9;
+      if (velocity[2] > 0)
+        velocity[2] = Math.max(0, velocity[2] - 0.001 * position[2]);
+    }
+    if (this.adjustForCollision)
+      this.adjustForCollision(position, velocity);
+    for (let i = 0; i < velocity.length; i++) {
+      if (Math.abs(velocity[i]) < 0.001)
+        velocity[i] = 0;
     }
     const velocityMagnitude = Math.sqrt(velocity.slice(0, 2).reduce((acc, x) => acc + x * x, 0));
     if (velocityMagnitude > 1)
@@ -89,7 +95,10 @@ class Player {
 
 class Room {
   constructor() {
-    this.ac = new (window.AudioContext || window.webkitAudioContext)();
+    this.ac = new (window.AudioContext || window.webkitAudioContext)({
+      // All of our media is 48k, and this reduces crackling on Safari
+      sampleRate: 48000,
+    });
     this.observers = new Observers();
     this.mediaStream = new MediaStream();
     this.guests = {};
@@ -127,7 +136,7 @@ class Room {
     setTimeout(() => {
       this.needsUpdate = false;
       this.sendAndSaveStateIfChanged();
-    }, 16);
+    }, 500);
   }
   setWs(ws) {
     this.ws = ws;
@@ -282,15 +291,12 @@ Service.get('docent', docent => {
   });
 });
 
-class RoomClient {
-  constructor(context) {
-    this.context = context;
-  }
+export default class RoomClient {
   join() {
     return room.join();
   }
   observe(key, cb) {
-    return room.observers.add(key, this.context, cb);
+    return room.observers.add(key, window, cb);
   }
   get ac() {
     return room.ac;
@@ -302,8 +308,3 @@ class RoomClient {
     return room.guests;
   }
 };
-
-const serviceCb = context => new RoomClient(context);
-Service.register('room', serviceCb);
-
-</script>
