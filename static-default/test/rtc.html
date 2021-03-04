@@ -272,7 +272,8 @@ class RTCTestClient {
           body: { to: 0, message },
         }));
       },
-      onerror: () => {
+      onerror: e => {
+        console.error(e);
         this.ws.close();
       },
       mediaStream: this.mediaStream,
@@ -358,7 +359,7 @@ class RTCTestClient {
       this.initPeer();
     };
     ws.onclose = e => {
-      setTimeout(() => { this.connectWs(); }, 1000);
+      setTimeout(() => { this.connectWs(); }, 1000 + Math.random() * 500);
       for (const k in this.peers)
         this.removePeer(k);
     };

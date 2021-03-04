@@ -72,11 +72,19 @@ export default class RTCPeer {
   async receiveFromPeer([name, value]) {
     const {pc} = this;
     if (name == 'offer') {
-      await pc.setRemoteDescription(value)
-      const answer = await pc.createAnswer(pc.remoteDescription);
-      if (this.tweakSDP)
-        answer.sdp = this.tweakSDP(answer.sdp);
-      await pc.setLocalDescription(answer);
+      try {
+        await pc.setRemoteDescription(value)
+        const answer = await pc.createAnswer(pc.remoteDescription);
+        if (this.tweakSDP)
+          answer.sdp = this.tweakSDP(answer.sdp);
+        await pc.setLocalDescription(answer);
+      } catch (e) {
+        if (this.onerror)
+          this.onerror(e);
+        else
+          throw e;
+        return;
+      }
       this.sendToPeer(['answer', pc.localDescription]);
     } else if (name == 'map') {
       this.midMap = value;
