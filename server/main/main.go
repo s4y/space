@@ -162,6 +162,7 @@ func startManagementServer(managementAddr string, managementStaticDir string) {
 
 func main() {
 	staticDir := flag.String("static", "../static-default", "Directory for static content")
+	managementStaticDir := flag.String("static-management", "../static-management", "Directory for management static content")
 	httpAddr := flag.String("http", "127.0.0.1:8031", "Listening address")
 	production := flag.Bool("p", false, "Production (disables automatic hot reloading)")
 	trustXRealIP := flag.Bool("trust-x-real-ip", false, "Trust the X-Real-IP header, if provided; useful for reverse proxies")
@@ -354,6 +355,6 @@ func main() {
 		http.Handle("/", reserve.FileServer(http.Dir(*staticDir)))
 	}
 
-	go startManagementServer(*managementAddr)
+	go startManagementServer(*managementAddr, *managementStaticDir)
 	log.Fatal(http.Serve(ln, nil))
 }
