@@ -14,15 +14,8 @@ import (
 type Vec2 [2]float64
 type Vec3 [3]float64
 
-type GuestState struct {
-	Position Vec3   `json:"position"`
-	Look     Vec2   `json:"look"`
-	Role     string `json:"role"`
-}
-
-type GuestPublic struct {
-	GuestState
-}
+// Warning: there's currently no limit on the size of this object.
+type GuestPublic map[string]interface{}
 
 type Guest struct {
 	Public    GuestPublic

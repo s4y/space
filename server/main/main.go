@@ -247,14 +247,14 @@ func main() {
 				if seq != 0 {
 					defaultWorld.Rejoin(seq)
 				} else {
-					var state world.GuestState
+					var state world.GuestPublic
 					err := json.Unmarshal(msg.Body, &state)
 					if err != nil {
 						fmt.Println(err)
 						return
 					}
-					guest.Public.GuestState = state
-					if state.Role == "cast" {
+					guest.Public = state
+					if state["role"] == "cast" {
 						rtcPeer.MaxBandwidth = 5000000
 					}
 					seq = defaultWorld.AddGuest(ctx, guest)
@@ -273,13 +273,13 @@ func main() {
 					fmt.Println("client tried to send state without joining first ", conn.RemoteAddr().String())
 					break
 				}
-				var state world.GuestState
+				var state world.GuestPublic
 				err := json.Unmarshal(msg.Body, &state)
 				if err != nil {
 					fmt.Println(err)
 					break
 				}
-				guest.Public.GuestState = state
+				guest.Public = state
 				defaultWorld.UpdateGuest(seq)
 			case "debug.fps":
 				var fps float64
