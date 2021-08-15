@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/s4y/reserve"
@@ -38,9 +39,28 @@ var config struct {
 
 var globalKnobs knobs.Knobs = knobs.Knobs{}
 
-func startManagementServer(managementAddr string) {
+type ClockResponse struct {
+	StartTime  float64 `json:"startTime"`
+	ServerTime int64   `json:"serverTime"`
+}
+
+func handleClock(msg json.RawMessage) (ClockResponse, error) {
+	var clockMessage struct {
+		StartTime float64 `json:"startTime"`
+	}
+	err := json.Unmarshal(msg, &clockMessage)
+	if err != nil {
+		return ClockResponse{}, err
+	}
+	return ClockResponse{
+		clockMessage.StartTime,
+		time.Now().UnixNano() / int64(time.Millisecond),
+	}, nil
+}
+
+func startManagementServer(managementAddr string, managementStaticDir string) {
 	mux := http.NewServeMux()
-	mux.Handle("/", reserve.FileServer("../static-management"))
+	mux.Handle("/", reserve.FileServer(http.Dir(managementStaticDir)))
 
 	fmt.Printf("Management UI (only) at http://%s/\n", managementAddr)
 	server := http.Server{Addr: managementAddr, Handler: mux}
@@ -110,6 +130,13 @@ func startManagementServer(managementAddr string) {
 				globalKnobs.Set(knob.Name, knob.Value)
 			case "broadcast":
 				defaultWorld.BroadcastFrom(0, msg.Body)
+			case "clock":
+				res, err := handleClock(msg.Body)
+				if err != nil {
+					fmt.Println(err)
+					break
+				}
+				conn.WriteJSON(world.MakeClientMessage("pong", res))
 			case "kick":
 				var kickMsg struct {
 					GuestId uint32 `json:"id"`
@@ -302,6 +329,13 @@ func main() {
 				}{seq, chatMessage.Message})
 
 				defaultWorld.BroadcastFrom(seq, outboundMessage)
+			case "clock":
+				res, err := handleClock(msg.Body)
+				if err != nil {
+					fmt.Println(err)
+					break
+				}
+				guest.Write(world.MakeClientMessage("pong", res))
 			default:
 				fmt.Println("unknown message:", msg)
 			}
