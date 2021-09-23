@@ -10,4 +10,4 @@ run: deps
 
 static-default/deps/three/%:
 	mkdir -p "$(dir $@)"
-	curl -Lo $@ "https://github.com/mrdoob/three.js/raw/master/$*"
+	curl -Lo $@ "https://github.com/mrdoob/three.js/raw/r130/$*"
