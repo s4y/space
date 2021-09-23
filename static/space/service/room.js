@@ -6,6 +6,7 @@ class Player {
   constructor(onchange, state = { position: [], look: [], }) {
     this.onchange = onchange;
     this.position = [Math.random() * 20 - 10, Math.random() * 20 - 10, 0];
+    this.data = {};
     this.gravityEnabled = true;
 
     // Gingerly unpack the saved position from sessionStorage. If anything
@@ -22,6 +23,7 @@ class Player {
       position: this.position,
       look: this.look,
       role: this.role || '',
+      ...this.data,
     };
   }
   get look() {
@@ -95,10 +97,6 @@ class Player {
 
 class Room {
   constructor() {
-    this.ac = new (window.AudioContext || window.webkitAudioContext)({
-      // All of our media is 48k, and this reduces crackling on Safari
-      sampleRate: 48000,
-    });
     this.observers = new Observers();
     this.mediaStream = new MediaStream();
     this.guests = {};
@@ -120,14 +118,23 @@ class Room {
       this.player = new Player(onchange);
     this.updateGuest('self', this.player);
   }
+  get ac() {
+    if (!this._ac) {
+      this.ac = new (window.AudioContext || window.webkitAudioContext)({
+        // All of our media is 48k, and this reduces crackling on Safari
+        sampleRate: 48000,
+      });
+      Service.get('gestureWrangler', gestureWrangler => {
+        gestureWrangler.playAudioContext(this.ac);
+      });
+    }
+    return this._ac;
+  }
   join() {
     if (this.isJoined)
       return;
     this.isJoined = true;
     Service.get('ws', ws => this.setWs(ws));
-    Service.get('gestureWrangler', gestureWrangler => {
-      gestureWrangler.playAudioContext(this.ac);
-    });
   }
   setNeedsUpdate() {
     if (this.needsUpdate)
@@ -136,7 +143,7 @@ class Room {
     setTimeout(() => {
       this.needsUpdate = false;
       this.sendAndSaveStateIfChanged();
-    }, 500);
+    }, 50);
   }
   setWs(ws) {
     this.ws = ws;
@@ -306,5 +313,8 @@ export default class RoomClient {
   }
   get guests() {
     return room.guests;
+  }
+  updateImmediately() {
+    room.sendAndSaveStateIfChanged();
   }
 };
