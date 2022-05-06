@@ -120,7 +120,7 @@ class Room {
   }
   get ac() {
     if (!this._ac) {
-      this.ac = new (window.AudioContext || window.webkitAudioContext)({
+      this._ac = new (window.AudioContext || window.webkitAudioContext)({
         // All of our media is 48k, and this reduces crackling on Safari
         sampleRate: 48000,
       });
