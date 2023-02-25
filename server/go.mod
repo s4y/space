@@ -13,5 +13,5 @@ require (
 	github.com/s4y/reserve v1.0.7
 	golang.org/x/crypto v0.0.0-20210813211128-0a44fdfbc16e // indirect
 	golang.org/x/net v0.0.0-20210813160813-60bc85c4be6d // indirect
-	golang.org/x/sys v0.0.0-20211108224332-cbcd623f202e // indirect
+	golang.org/x/sys v0.1.0 // indirect
 )
